@@ -24,6 +24,10 @@ export type Geocerca = {
   lng: number
   radio_m: number
   activa: boolean
+  direccion?: string | null
+  provincia?: string | null
+  tipo?: string | null
+  created_at?: string
 }
 
 export type Fichaje = {
