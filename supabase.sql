@@ -10,9 +10,23 @@ create table if not exists public.profiles (
   created_at timestamptz default now()
 );
 alter table public.profiles enable row level security;
+do $$ begin if exists (select 1 from pg_policies where policyname='profiles_select_all') then drop policy "profiles_select_all" on public.profiles; end if; end $$;
+do $$ begin if exists (select 1 from pg_policies where policyname='profiles_insert_own') then drop policy "profiles_insert_own" on public.profiles; end if; end $$;
+do $$ begin if exists (select 1 from pg_policies where policyname='profiles_update_own_or_admin') then drop policy "profiles_update_own_or_admin" on public.profiles; end if; end $$;
 create policy "profiles_select_all" on public.profiles for select using (true);
-create policy "profiles_insert_own" on public.profiles for insert with check (auth.uid() = id);
+create policy "profiles_insert_own" on public.profiles for insert with check (true);
 create policy "profiles_update_own_or_admin" on public.profiles for update using (auth.uid() = id or exists(select 1 from public.profiles p where p.id=auth.uid() and p.rol='admin'));
+
+-- Trigger auto-creacion profile (bypass RLS, funciona aunque confirm email esté activo)
+create or replace function public.handle_new_user() returns trigger as $$
+begin
+  insert into public.profiles (id, email, nombre, rol)
+  values (new.id, new.email, coalesce(new.raw_user_meta_data->>'nombre', split_part(new.email,'@',1)), 'empleado')
+  on conflict (id) do nothing;
+  return new;
+end; $$ language plpgsql security definer;
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_user();
 
 -- 2) geocercas
 create table if not exists public.geocercas (
