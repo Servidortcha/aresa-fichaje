@@ -4,6 +4,14 @@ export default {
   theme: {
     extend: {
       colors: {
+        ink: "#4A4B4D",
+        paper: "#F2EEE3",
+        card: "#FAF8F3",
+        line: "#D8D2C4",
+        amber: "#F4791E",
+        green: "#4B7355",
+        red: "#C7522A",
+        steel: "#4A4B4D",
         aresa: {
           50: '#fef2f2',
           100: '#fee2e2',
@@ -12,9 +20,13 @@ export default {
           700: '#b91c1c',
           900: '#7f1d1d',
         }
-      }
+      },
+      fontFamily: {
+        display: ["'Barlow Condensed'", "sans-serif"],
+        body: ["Inter", "sans-serif"],
+        mono: ["'JetBrains Mono'", "monospace"],
+      },
     },
   },
   plugins: [],
 }
-

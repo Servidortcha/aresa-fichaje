@@ -29,17 +29,21 @@ export default function Login() {
   }
 
   return (
-    <div className="max-w-md mx-auto mt-8">
-      <div className="bg-gradient-to-br from-red-600 to-red-700 rounded-2xl p-6 text-white text-center shadow">
-        <div className="w-12 h-12 bg-white text-red-600 rounded-xl grid place-items-center mx-auto font-bold text-xl">A</div>
-        <h1 className="text-2xl font-bold mt-3">Aresa Fichaje</h1>
-        <p className="text-red-100 text-sm">Tu jornada, en un toque — foto y ubicación verificadas, sin vueltas.</p>
+    <div className="max-w-md mx-auto mt-8 relative">
+      <div className="bg-gradient-to-br from-[#163A5F] to-[#2E6F9E] rounded-2xl p-6 text-white text-center shadow relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10" style={{ background: 'repeating-linear-gradient(90deg, #14C3B0 0 12px, transparent 12px 24px)' }}></div>
+        <div className="relative">
+          <img src="/logo-horizontal.png" alt="Aresa" className="h-8 mx-auto bg-white rounded px-2 py-1" onError={(e)=>{ (e.target as HTMLImageElement).style.display='none'}} />
+          <div className="w-12 h-12 bg-white text-[#163A5F] rounded-xl grid place-items-center mx-auto font-display font-bold text-xl mt-2">A</div>
+          <h1 className="text-2xl font-display font-bold mt-3">Aresa Fichaje</h1>
+          <p className="text-white/80 text-sm">Tu jornada, en un toque — foto y ubicación verificadas, sin vueltas.</p>
+        </div>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl shadow border -mt-3">
-        <div className="flex gap-2 mb-4 p-1 bg-gray-100 rounded-full">
-          <button onClick={() => setMode('login')} className={`flex-1 py-2 rounded-full text-sm font-medium ${mode === 'login' ? 'bg-red-600 text-white shadow' : 'text-gray-600'}`}>Entrar</button>
-          <button onClick={() => setMode('register')} className={`flex-1 py-2 rounded-full text-sm font-medium ${mode === 'register' ? 'bg-red-600 text-white shadow' : 'text-gray-600'}`}>Crear cuenta</button>
+      <div className="bg-card p-6 rounded-2xl shadow border border-line -mt-3 relative">
+        <div className="flex gap-2 mb-4 p-1 bg-paper border border-line rounded-full">
+          <button onClick={() => setMode('login')} className={`flex-1 py-2 rounded-full text-sm font-medium ${mode === 'login' ? 'bg-ink text-paper shadow' : 'text-ink/60'}`}>Entrar</button>
+          <button onClick={() => setMode('register')} className={`flex-1 py-2 rounded-full text-sm font-medium ${mode === 'register' ? 'bg-ink text-paper shadow' : 'text-ink/60'}`}>Crear cuenta</button>
         </div>
 
         <form onSubmit={submit} className="space-y-3">
@@ -48,7 +52,7 @@ export default function Login() {
           )}
           <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" type="email" required className="w-full border rounded-xl px-3 py-3" />
           <input value={pass} onChange={e => setPass(e.target.value)} placeholder="Contraseña" type="password" required className="w-full border rounded-xl px-3 py-3" />
-          <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold shadow">
+          <button type="submit" className="w-full bg-ink hover:bg-black text-paper py-3 rounded-xl font-bold shadow">
             {mode === 'login' ? 'Entrar →' : 'Crear cuenta y empezar'}
           </button>
         </form>
