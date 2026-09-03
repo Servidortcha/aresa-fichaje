@@ -17,7 +17,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span className="hidden sm:inline text-gray-600">{profile.nombre} · {profile.rol}</span>
                 <span className="px-2 py-1 bg-gray-100 rounded text-xs">{profile.email}</span>
                 {profile.rol === 'admin' && <Link to="/admin" className="px-3 py-1.5 bg-red-600 text-white rounded">Admin</Link>}
-                {profile.rol === 'empleado' && <Link to="/fichar" className="px-3 py-1.5 bg-red-600 text-white rounded">Fichar</Link>}
+                {profile.rol === 'empleado' && <><Link to="/fichar" className="px-3 py-1.5 bg-red-600 text-white rounded">Fichar</Link><Link to="/mis-fichajes" className="px-3 py-1.5 border bg-white rounded">Fichajes</Link></>}
+                {profile.rol === 'admin' && <Link to="/mis-fichajes" className="px-3 py-1.5 border bg-white rounded">Mis fichajes</Link>}
                 <button onClick={signOut} className="px-3 py-1.5 border rounded">Salir</button>
               </>
             )}

@@ -9,6 +9,7 @@ import Dashboard from './pages/admin/Dashboard'
 import Sucursales from './pages/admin/Sucursales'
 import SucursalForm from './pages/admin/SucursalForm'
 import Fichajes from './pages/admin/Fichajes'
+import MisFichajes from './pages/MisFichajes'
 
 function Protected({ children, roles }: { children: React.ReactNode; roles?: ('admin' | 'empleado')[] }) {
   const { userId, profile, loading } = useAuth()
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Layout><HomeRedirect /></Layout>} />
           <Route path="/fichar" element={<Layout><Protected roles={['empleado', 'admin']}><Empleado /></Protected></Layout>} />
+          <Route path="/mis-fichajes" element={<Layout><Protected roles={['empleado', 'admin']}><MisFichajes /></Protected></Layout>} />
           {/* Admin con páginas separadas - src/pages/admin/AdminLayout.tsx:1 */}
           <Route path="/admin" element={<Layout><Protected roles={['admin']}><AdminLayout /></Protected></Layout>}>
             <Route index element={<Dashboard />} />

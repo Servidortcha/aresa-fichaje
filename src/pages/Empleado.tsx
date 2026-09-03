@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase, type Geocerca } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { dentroDeGeocerca, reverseGeocode } from '../lib/geofence'
@@ -290,6 +291,7 @@ export default function Empleado() {
               ))}
             </div>
           )}
+          <Link to="/mis-fichajes" className="block text-center mt-4 w-full bg-white border py-2 rounded font-medium">Ver sección Fichajes con horas por día →</Link>
           <details className="mt-4">
             <summary className="text-sm text-gray-600 cursor-pointer">Ver historial completo ({historial.length})</summary>
             <div className="space-y-2 mt-2">
