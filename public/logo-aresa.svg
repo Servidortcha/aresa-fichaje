@@ -1,0 +1,10 @@
+<svg width="600" height="200" viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ARESA">
+  <rect width="600" height="200" fill="transparent"/>
+  <!-- Barras -->
+  <rect x="40" y="90" width="60" height="90" rx="12" fill="#14C3B0"/>
+  <rect x="120" y="50" width="60" height="130" rx="12" fill="#2E6F9E"/>
+  <rect x="200" y="10" width="60" height="170" rx="12" fill="#163A5F"/>
+  <rect x="280" y="70" width="60" height="110" rx="12" fill="#2E6F9E"/>
+  <!-- Texto ARESA -->
+  <text x="380" y="130" font-family="'Barlow Condensed', Inter, sans-serif" font-size="82" font-weight="700" fill="#0F172A" letter-spacing="6">ARESA</text>
+</svg>
