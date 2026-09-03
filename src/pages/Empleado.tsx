@@ -44,7 +44,7 @@ export default function Empleado() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [direccion, setDireccion] = useState<string | null>(null)
   const [sucursales, setSucursales] = useState<Geocerca[]>([])
-  const [selectedId, setSelectedId] = useState<string>('auto')
+  const [selectedId] = useState<string>('auto')
   const [loadingLoc, setLoadingLoc] = useState(false)
   const [fotoPreview, setFotoPreview] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
@@ -160,8 +160,8 @@ export default function Empleado() {
       stopCamera()
       await loadHistorial()
       setView('home')
-      if (!dentro && sucursales.length>0) setMsg(`✓ ${tipo} registrado FUERA de ${target?.nombre ?? 'sucursal'} (${distancia}m)`)
-      else setMsg(`✓ ${tipo} registrado en ${target?.nombre ?? 'sucursal'} ✓`)
+      if (!dentro && sucursales.length>0) setMsg(`✓ ${tipo} registrado`)
+      else setMsg(`✓ ${tipo} registrado ✓`)
     } catch (e: any) { setMsg('Error al fichar: ' + e.message) } finally { setEnviando(false) }
   }
 
@@ -169,8 +169,6 @@ export default function Empleado() {
     const r = dentroDeGeocerca(coords.lat, coords.lng, s.lat, s.lng, s.radio_m)
     return { ...s, _dist: r.distancia, _dentro: r.dentro }
   }).sort((a:any,b:any)=>a._dist-b._dist) : sucursales as any[]
-
-  const autoMejor = sucursalesOrdenadas[0] as any
 
   const jornada = calcularJornada(historialHoy)
   const elapsedMs = (() => {
@@ -223,8 +221,8 @@ export default function Empleado() {
       stopCamera()
       await loadHistorial()
       setView('home')
-      if (!dentro && sucursales.length>0) setMsg(`✓ ${tipo} registrado FUERA de ${target?.nombre ?? 'sucursal'} (${distancia}m)`)
-      else setMsg(`✓ ${tipo} registrado en ${target?.nombre ?? 'sucursal'} ${dentro ? '✓' : ''}`)
+      if (!dentro && sucursales.length>0) setMsg(`✓ ${tipo} registrado`)
+      else setMsg(`✓ ${tipo} registrado ✓`)
     } catch (e: any) { setMsg('Error al fichar: ' + e.message) } finally { setEnviando(false) }
   }
 
@@ -259,23 +257,7 @@ export default function Empleado() {
                 <div className="text-sm text-gray-600">Horas trabajadas hoy (descontando pausas)</div>
                 {jornada.inicioMs && <div className="text-xs text-gray-500">Inicio: {new Date(jornada.inicioMs).toLocaleTimeString()}</div>}
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => iniciarFlujo('pausa_inicio')} className="bg-yellow-500 text-white py-4 rounded-xl font-bold">⏸ Pausar</button>
-                <button onClick={() => iniciarFlujo('salida')} className="bg-red-600 text-white py-4 rounded-xl font-bold">⏹ Finalizar jornada</button>
-              </div>
-              <button onClick={() => setView('fichar')} className="w-full mt-3 text-sm text-gray-600 underline">Fichar otro evento</button>
-            </>
-          ) : jornada.enPausa ? (
-            <>
-              <div className="my-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-                <div className="inline-flex px-3 py-1 bg-yellow-500 text-white rounded-full text-sm font-bold">⏸ En pausa</div>
-                <div className="text-5xl font-mono font-bold mt-3">{formatHoras(elapsedMs)}</div>
-                <div className="text-sm text-gray-600">Tiempo trabajado hasta la pausa</div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => iniciarFlujo('pausa_fin')} className="bg-green-600 text-white py-4 rounded-xl font-bold">▶ Reanudar</button>
-                <button onClick={() => iniciarFlujo('salida')} className="bg-red-600 text-white py-4 rounded-xl font-bold">⏹ Finalizar</button>
-              </div>
+              <button onClick={() => iniciarFlujo('salida')} className="w-full bg-red-600 text-white py-4 rounded-xl font-bold">⏹ Finalizar jornada</button>
             </>
           ) : jornada.finalizada ? (
             <>
@@ -302,7 +284,7 @@ export default function Empleado() {
                   <div>
                     <div className="font-semibold">{f.tipo} · {new Date(f.created_at).toLocaleTimeString()}</div>
                     <div className="text-xs text-gray-600">{f.direccion}</div>
-                    <div className={f.dentro_geocerca ? 'text-green-600 text-xs' : 'text-red-600 text-xs'}>{f.dentro_geocerca ? '✓ Dentro' : `⚠ Fuera (${f.distancia_m} m)`}</div>
+
                   </div>
                 </div>
               ))}
@@ -348,18 +330,10 @@ export default function Empleado() {
       <button onClick={capturarFoto} disabled={!stream || enviando} className="w-full bg-amber-500 text-white py-3 rounded font-bold disabled:opacity-50">{enviando ? '⏳ Registrando...' : '📸 Capturar foto y registrar automáticamente'}</button>
       {fotoPreview && !enviando && <div><img src={fotoPreview} className="w-full rounded border" /><p className="text-xs text-blue-600 text-center">Procesando...</p></div>}
 
-      <div className="bg-gray-50 p-3 rounded border space-y-2">
-        <label className="text-sm font-semibold">Sucursal</label>
-        <select value={selectedId} onChange={e=>setSelectedId(e.target.value)} className="w-full border rounded px-3 py-2 bg-white text-sm">
-          <option value="auto">Automático {autoMejor ? `(${autoMejor.nombre} · ${(autoMejor as any)._dist}m)` : ''}</option>
-          {sucursalesOrdenadas.map((s:any)=> <option key={s.id} value={s.id}>{s.nombre} {(s as any).provincia ? `· ${(s as any).provincia}`:''} — {s._dist!=null?`${s._dist}m ${s._dentro?'✓':''} · ${s.radio_m}m`: `${s.radio_m}m`}</option>)}
-        </select>
-      </div>
+
 
       <div className="text-sm bg-gray-50 p-3 rounded border">
-        {coords ? <><div>📍 {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</div><div className="text-gray-600 text-xs">{direccion ?? '...'}</div>
-          {sucursales.length>0 && <div className="text-xs mt-1">{sucursalesOrdenadas.slice(0,1).map((s:any)=> <span key={s.id} className={s._dentro?'text-green-700':'text-red-600'}>{s.nombre}: {s._dist}m {s._dentro?'✓ DENTRO':'⚠ FUERA'} (radio {s.radio_m} m)</span>)}</div>}
-        </> : <span className="text-gray-500">Obteniendo ubicación automática...</span>}
+        {coords ? <><div>📍 Ubicación obtenida ✓</div><div className="text-gray-600 text-xs">{direccion ?? '...'}</div></> : <span className="text-gray-500">Obteniendo ubicación automática...</span>}
       </div>
 
       <p className="text-xs text-center text-gray-500">Al sacar la foto queda registrado al instante — no necesitas confirmar.</p>
