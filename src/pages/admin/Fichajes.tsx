@@ -179,7 +179,7 @@ export default function Fichajes(){
       {msg && <div className="bg-blue-50 border border-blue-200 p-3 rounded text-sm">{msg}</div>}
 
       {editing && (
-        <div className="fixed inset-0 bg-black/50 grid place-items-center z-50 p-4" onClick={()=>setEditing(null)}>
+        <div className="fixed inset-0 bg-black/60 grid place-items-center z-[9999] p-4" onClick={()=>setEditing(null)}>
           <div className="bg-white rounded-xl p-5 w-full max-w-lg space-y-3" onClick={e=>e.stopPropagation()}>
             <h3 className="font-bold">Editar fichaje — {editing.profiles?.nombre}</h3>
             <p className="text-xs text-gray-500">{editing.id}</p>
