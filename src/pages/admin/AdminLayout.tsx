@@ -6,6 +6,7 @@ const nav = [
   { to: '/admin/sucursales/nueva', label: '+ Nueva Sucursal' },
   { to: '/admin/fichajes', label: 'Fichajes' },
   { to: '/admin/solicitudes', label: 'Solicitudes' },
+  { to: '/admin/usuarios', label: 'Usuarios' },
 ]
 
 export default function AdminLayout(){

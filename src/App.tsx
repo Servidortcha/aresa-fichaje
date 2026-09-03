@@ -10,6 +10,7 @@ import Sucursales from './pages/admin/Sucursales'
 import SucursalForm from './pages/admin/SucursalForm'
 import Fichajes from './pages/admin/Fichajes'
 import Solicitudes from './pages/admin/Solicitudes'
+import Usuarios from './pages/admin/Usuarios'
 import MisFichajes from './pages/MisFichajes'
 
 function Protected({ children, roles }: { children: React.ReactNode; roles?: ('admin' | 'empleado')[] }) {
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="sucursales/:id" element={<SucursalForm />} />
             <Route path="fichajes" element={<Fichajes />} />
             <Route path="solicitudes" element={<Solicitudes />} />
+            <Route path="usuarios" element={<Usuarios />} />
           </Route>
           {/* legacy single page */}
           <Route path="/admin-old" element={<Layout><Protected roles={['admin']}><Admin /></Protected></Layout>} />
