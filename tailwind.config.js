@@ -4,21 +4,22 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: "#4A4B4D",
-        paper: "#F2EEE3",
-        card: "#FAF8F3",
-        line: "#D8D2C4",
+        ink: "#203575",
+        paper: "#F0F2F8",
+        card: "#FFFFFF",
+        line: "#CBD5E1",
         amber: "#F4791E",
         green: "#4B7355",
         red: "#C7522A",
-        steel: "#4A4B4D",
+        steel: "#2E6F9E",
+        accent: "#3A8DDE",
         aresa: {
-          50: '#fef2f2',
-          100: '#fee2e2',
-          500: '#ef4444',
-          600: '#dc2626',
-          700: '#b91c1c',
-          900: '#7f1d1d',
+          50: '#EFF6FF',
+          100: '#DBEAFE',
+          500: '#3A8DDE',
+          600: '#2E6F9E',
+          700: '#203575',
+          900: '#1A2B4A',
         }
       },
       fontFamily: {

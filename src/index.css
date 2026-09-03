@@ -4,8 +4,8 @@
 @tailwind utilities;
 
 body {
-  background-color: #F2EEE3;
-  color: #4A4B4D;
+  background-color: #F0F2F8;
+  color: #203575;
   font-family: 'Inter', sans-serif;
 }
 .leaflet-container { height: 100%; width: 100%; }

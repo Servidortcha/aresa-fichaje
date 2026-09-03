@@ -1,4 +1,4 @@
-const COLORS = ["#14C3B0", "#2E6F9E", "#163A5F", "#2E6F9E"];
+const COLORS = ["#203575", "#2E6F9E", "#3A8DDE", "#203575"];
 function BarGroup({ heights, corner }: { heights:number[], corner:'left'|'right' }) {
   const pos: React.CSSProperties = corner === "right"
     ? { right: "-3vw", bottom: "-3vw" }
