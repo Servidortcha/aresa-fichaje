@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase, type Geocerca } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { dentroDeGeocerca, reverseGeocode } from '../lib/geofence'
+import { isMockLocation, watermarkFoto, canFichar } from '../lib/security'
 
 type Tipo = 'entrada' | 'pausa_inicio' | 'pausa_fin' | 'salida'
 
@@ -100,26 +101,31 @@ export default function Empleado() {
     setLoadingLoc(true); setMsg(null)
     if (!navigator.geolocation) { setMsg('Geolocalización no soportada'); setLoadingLoc(false); return }
     navigator.geolocation.getCurrentPosition(async pos => {
+      const chk = isMockLocation(pos)
+      if(chk.mock){ setMsg('Ubicación no confiable: '+chk.reason+' — desactiva mock/GPS falso y reintenta.'); setLoadingLoc(false); return }
       const lat = pos.coords.latitude; const lng = pos.coords.longitude
       setCoords({ lat, lng })
       setDireccion(await reverseGeocode(lat, lng))
       setLoadingLoc(false)
-    }, err => { setMsg('Error GPS: ' + err.message + ' - Debe permitir ubicación.'); setLoadingLoc(false) },
+    }, err => { setMsg('Error GPS: ' + err.message + ' - Debe permitir ubicación precisa.'); setLoadingLoc(false) },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 })
   }
 
   const capturarFoto = async () => {
     if (!videoRef.current || !canvasRef.current) return
+    if (!canFichar(userId ?? 'anon', 30000)) { setMsg('Espera 30s entre fichajes — evita toques accidentales.'); return }
     const v = videoRef.current; const c = canvasRef.current
     c.width = v.videoWidth; c.height = v.videoHeight
-    c.getContext('2d')!.drawImage(v, 0, 0)
-    const dataUrl = c.toDataURL('image/jpeg', 0.8)
+    const ctx = c.getContext('2d')!
+    ctx.drawImage(v, 0, 0)
+    // watermark con fecha/hora y coords para auditoría (no se permite galería)
+    const lat = coords?.lat ?? 0, lng = coords?.lng ?? 0
+    watermarkFoto(c, lat, lng, new Date(), undefined)
+    const dataUrl = c.toDataURL('image/jpeg', 0.85)
     setFotoPreview(dataUrl)
-    // auto-registro al sacar foto si hay GPS
     if (!coords) {
       setMsg('Foto capturada ✓ — obteniendo GPS...')
       await getLocation()
-      // getLocation es async pero no retorna coords inmediatamente; esperamos un tick
       setTimeout(()=> ficharAuto(dataUrl), 800)
     } else {
       ficharAuto(dataUrl)

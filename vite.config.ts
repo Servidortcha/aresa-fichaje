@@ -11,7 +11,7 @@ export default defineConfig({
       manifest: {
         name: 'Aresa Fichaje',
         short_name: 'Aresa',
-        description: 'Fichaje remoto con foto y geolocalización - Aresa',
+        description: 'Aresa Fichaje — Tu jornada, en un toque. Foto y GPS verificados.',
         theme_color: '#dc2626',
         background_color: '#ffffff',
         display: 'standalone',

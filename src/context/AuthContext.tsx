@@ -18,11 +18,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setUserId(data.session?.user.id ?? null)
+      // auditoría: sesión segura 12h
+      if(data.session) localStorage.setItem('aresa_last_login', new Date().toISOString())
     })
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setUserId(session?.user.id ?? null)
+      if(session) localStorage.setItem('aresa_last_login', new Date().toISOString())
     })
-    return () => sub.subscription.unsubscribe()
+    // auto logout por inactividad 12h
+    const check = setInterval(async()=>{
+      const last = localStorage.getItem('aresa_last_login')
+      if(last && Date.now() - new Date(last).getTime() > 12*60*60*1000){
+        await supabase.auth.signOut()
+      }
+    }, 60_000)
+    const onAct = ()=> localStorage.setItem('aresa_last_active', Date.now().toString())
+    window.addEventListener('click', onAct); window.addEventListener('keydown', onAct)
+    return () => { sub.subscription.unsubscribe(); clearInterval(check); window.removeEventListener('click', onAct); window.removeEventListener('keydown', onAct) }
   }, [])
 
   useEffect(() => {

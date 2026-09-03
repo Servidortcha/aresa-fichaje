@@ -8,8 +8,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <header className="bg-white border-b sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 font-bold text-red-700">
-            <span className="w-8 h-8 bg-red-600 text-white grid place-items-center rounded">A</span>
-            Aresa Fichaje
+            <span className="w-8 h-8 bg-gradient-to-br from-red-600 to-red-700 text-white grid place-items-center rounded-lg shadow">A</span>
+            <span>Aresa <span className="font-light">Fichaje</span> <span className="hidden md:inline text-xs font-normal bg-green-100 text-green-700 px-2 py-1 rounded-full ml-2">verificado</span></span>
           </Link>
           <div className="flex items-center gap-3 text-sm">
             {profile && (
