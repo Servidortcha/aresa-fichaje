@@ -6,6 +6,12 @@ import L from 'leaflet'
 import * as XLSX from 'xlsx'
 import { distanciaMetros } from '../../lib/geofence'
 
+const aresaStyle = {
+  headerDay: { font:{bold:true, color:{rgb:"FFFFFF"}, sz:8}, fill:{patternType:"solid", fgColor:{rgb:"FF163A5F"}}, alignment:{horizontal:"center", vertical:"center", wrapText:true}, border:{top:{style:"thin", color:{rgb:"FFD8D2C4"}}, bottom:{style:"thin", color:{rgb:"FFD8D2C4"}}, left:{style:"thin", color:{rgb:"FFD8D2C4"}}, right:{style:"thin", color:{rgb:"FFD8D2C4"}}} } as any,
+  headerSub: { font:{bold:true, color:{rgb:"FFFFFF"}, sz:7}, fill:{patternType:"solid", fgColor:{rgb:"FF2E6F9E"}}, alignment:{horizontal:"center", vertical:"center"}, border:{top:{style:"thin", color:{rgb:"FFD8D2C4"}}, bottom:{style:"thin", color:{rgb:"FFD8D2C4"}}, left:{style:"thin", color:{rgb:"FFD8D2C4"}}, right:{style:"thin", color:{rgb:"FFD8D2C4"}}} } as any,
+  totalFill: { fill:{patternType:"solid", fgColor:{rgb:"FFFFD700"}} } as any,
+}
+
 delete (L.Icon.Default.prototype as any)._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -62,7 +68,23 @@ export default function Fichajes(){
       const suc=f.geocerca_id ? sucMap.get(f.geocerca_id) : null
       return { Fecha:new Date(f.created_at).toLocaleString(), Empleado:f.profiles?.nombre, Email:f.profiles?.email, Tipo:f.tipo, Sucursal:suc?.nombre ?? 'Fuera', Provincia:(suc as any)?.provincia ?? '', Lat:f.lat, Lng:f.lng, Direccion:f.direccion, Dentro:f.dentro_geocerca?'SI':'NO', Distancia_m:f.distancia_m, Foto:f.foto_url }
     })
-    const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Fichajes'); XLSX.writeFile(wb, `Aresa_Fichajes_${new Date().toISOString().slice(0,10)}.xlsx`)
+    const ws=XLSX.utils.json_to_sheet(rows)
+    // decorar header Aresa
+    const range=XLSX.utils.decode_range(ws['!ref'] || 'A1')
+    for(let c=range.s.c;c<=range.e.c;c++){
+      const addr=XLSX.utils.encode_cell({r:0,c})
+      if(ws[addr]) ws[addr].s = aresaStyle.headerDay
+    }
+    ws['!cols']=[{wch:18},{wch:18},{wch:28},{wch:10},{wch:18},{wch:12},{wch:12},{wch:12},{wch:30},{wch:8},{wch:12},{wch:40}]
+    // zebra filas
+    for(let r=1;r<=range.e.r;r++){
+      const isEven=r%2===0
+      for(let c=range.s.c;c<=range.e.c;c++){
+        const addr=XLSX.utils.encode_cell({r,c})
+        if(ws[addr]) ws[addr].s = { ...(ws[addr].s||{}), fill:{patternType:"solid", fgColor:{rgb: isEven?"FFF2EEE3":"FFFFFFFF"}}, border: aresaStyle.headerSub.border }
+      }
+    }
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Fichajes'); XLSX.writeFile(wb, `Aresa_Fichajes_${new Date().toISOString().slice(0,10)}.xlsx`, {cellStyles:true} as any)
   }
   const exportPorSucursal=()=>{
     const source = filtrados.length ? filtrados : fichajes
@@ -80,16 +102,20 @@ export default function Fichajes(){
       })
       const ws=XLSX.utils.json_to_sheet(rows)
       ws['!cols']=[{wch:18},{wch:18},{wch:28},{wch:10},{wch:18},{wch:12},{wch:12},{wch:12},{wch:30},{wch:8},{wch:12},{wch:40}]
+      const rg=XLSX.utils.decode_range(ws['!ref']||'A1')
+      for(let c=rg.s.c;c<=rg.e.c;c++){ const a=XLSX.utils.encode_cell({r:0,c}); if(ws[a]) ws[a].s=aresaStyle.headerDay }
+      for(let r=1;r<=rg.e.r;r++) for(let c=rg.s.c;c<=rg.e.c;c++){ const a=XLSX.utils.encode_cell({r,c}); if(ws[a]) ws[a].s={...(ws[a].s||{}), fill:{patternType:"solid", fgColor:{rgb: r%2===0?"FFF2EEE3":"FFFFFFFF"}}, border: aresaStyle.headerSub.border} }
       XLSX.utils.book_append_sheet(wb, ws, suc.slice(0,31))
     }
-    // hoja todos
     const allRows=source.map(f=>{
       const s=f.geocerca_id ? sucMap.get(f.geocerca_id) : null
       return { Fecha:new Date(f.created_at).toLocaleString(), Empleado:f.profiles?.nombre, Email:f.profiles?.email, Tipo:f.tipo, Sucursal:s?.nombre ?? 'Fuera', Provincia:(s as any)?.provincia ?? '', Lat:f.lat, Lng:f.lng, Direccion:f.direccion, Dentro:f.dentro_geocerca?'SI':'NO', Distancia_m:f.distancia_m, Foto:f.foto_url }
     })
     const wsAll=XLSX.utils.json_to_sheet(allRows)
+    wsAll['!cols']=[{wch:18},{wch:18},{wch:28},{wch:10},{wch:18},{wch:12},{wch:12},{wch:12},{wch:30},{wch:8},{wch:12},{wch:40}]
+    { const rg=XLSX.utils.decode_range(wsAll['!ref']||'A1'); for(let c=rg.s.c;c<=rg.e.c;c++){ const a=XLSX.utils.encode_cell({r:0,c}); if(wsAll[a]) wsAll[a].s=aresaStyle.headerDay } for(let r=1;r<=rg.e.r;r++) for(let c=rg.s.c;c<=rg.e.c;c++){ const a=XLSX.utils.encode_cell({r,c}); if(wsAll[a]) wsAll[a].s={...(wsAll[a].s||{}), fill:{patternType:"solid", fgColor:{rgb: r%2===0?"FFF2EEE3":"FFFFFFFF"}}, border: aresaStyle.headerSub.border} } }
     XLSX.utils.book_append_sheet(wb, wsAll, 'Todos')
-    XLSX.writeFile(wb, `Aresa_Fichajes_por_Sucursal_${new Date().toISOString().slice(0,10)}.xlsx`)
+    XLSX.writeFile(wb, `Aresa_Fichajes_por_Sucursal_${new Date().toISOString().slice(0,10)}.xlsx`, {cellStyles:true} as any)
   }
 
   const exportSimonetti = async()=>{
@@ -307,10 +333,27 @@ export default function Fichajes(){
         rowIdx++
       }
 
-      // actualizar !ref si hace falta
+      // decorar Simonetti Aresa
+      const rng=XLSX.utils.decode_range(ws['!ref']||'A1:HS34')
+      for(let c=0;c<=rng.e.c;c++){
+        const a1=XLSX.utils.encode_cell({r:0,c}); if(ws[a1]) ws[a1].s={...aresaStyle.headerDay, fill:{patternType:"solid", fgColor:{rgb: c<4?"FF163A5F":"FF2E6F9E"}}, alignment:{horizontal:"center", vertical:"center", wrapText:true}}
+        const a2=XLSX.utils.encode_cell({r:1,c}); if(ws[a2]) ws[a2].s=aresaStyle.headerSub
+      }
+      for(let r=2;r<=34;r++){
+        const isEven=r%2===0
+        for(let c=0;c<=rng.e.c;c++){
+          const a=XLSX.utils.encode_cell({r,c})
+          if(ws[a]){
+            const base = ws[a].s || {}
+            ws[a].s={...base, fill: base.fill || {patternType:"solid", fgColor:{rgb: isEven?"FFF2EEE3":"FFFFFFFF"}}, border: aresaStyle.headerSub.border, alignment:{vertical:"center", horizontal: c<2?"left":"center"}}
+          }
+        }
+      }
+      for(let r=2;r<=34;r++) for(const col of [225,226,227]){ const a=XLSX.utils.encode_cell({r,c:col-1}); if(ws[a]) ws[a].s={...(ws[a].s||{}), fill:{patternType:"solid", fgColor:{rgb:"FFFFD700"}}, font:{bold:true}, border: aresaStyle.headerSub.border} }
+
       ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:34, c:226}})
 
-      XLSX.writeFile(wb, `Simonetti_${mesStr}${y}_Fichajes_${exportMes}.xlsx`)
+      XLSX.writeFile(wb, `Simonetti_${mesStr}${y}_Fichajes_${exportMes}.xlsx`, {cellStyles:true} as any)
       setMsg(`Exportado formato Simonetti ${mesStr} ${y} ✓`)
     }catch(e:any){
       console.error(e)
