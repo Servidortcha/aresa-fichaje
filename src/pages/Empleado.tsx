@@ -100,12 +100,69 @@ export default function Empleado() {
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 })
   }
 
-  const capturarFoto = () => {
+  const capturarFoto = async () => {
     if (!videoRef.current || !canvasRef.current) return
     const v = videoRef.current; const c = canvasRef.current
     c.width = v.videoWidth; c.height = v.videoHeight
     c.getContext('2d')!.drawImage(v, 0, 0)
-    setFotoPreview(c.toDataURL('image/jpeg', 0.8))
+    const dataUrl = c.toDataURL('image/jpeg', 0.8)
+    setFotoPreview(dataUrl)
+    // auto-registro al sacar foto si hay GPS
+    if (!coords) {
+      setMsg('Foto capturada ✓ — obteniendo GPS...')
+      await getLocation()
+      // getLocation es async pero no retorna coords inmediatamente; esperamos un tick
+      setTimeout(()=> ficharAuto(dataUrl), 800)
+    } else {
+      ficharAuto(dataUrl)
+    }
+  }
+
+  const ficharAuto = async (fotoDataUrl: string) => {
+    const tipo = ficharTipo
+    if (!userId) return setMsg('No autenticado')
+    // coords puede venir del estado actualizado
+    let curCoords = coords
+    if (!curCoords) {
+      // intenta obtener una vez más
+      setMsg('Esperando GPS...')
+      return
+    }
+    if (!fotoDataUrl) return setMsg('Foto no capturada')
+    setEnviando(true); setMsg('Registrando fichaje...')
+    try {
+      let target: Geocerca | null = null
+      let dentro=false, distancia:number|null=null
+      if(selectedId === 'auto'){
+        let min=Infinity
+        for(const g of sucursales){
+          const r = dentroDeGeocerca(curCoords.lat, curCoords.lng, g.lat, g.lng, g.radio_m)
+          if(r.distancia < min){ min=r.distancia; target=g; dentro=r.dentro; distancia=r.distancia }
+        }
+      } else {
+        target = sucursales.find(s=>s.id===selectedId) ?? null
+        if(target){
+          const r = dentroDeGeocerca(curCoords.lat, curCoords.lng, target.lat, target.lng, target.radio_m)
+          dentro=r.dentro; distancia=r.distancia
+        }
+      }
+      const geocerca_id = target?.id ?? (sucursalesOrdenadas[0] as any)?.id ?? null
+      const blob = await (await fetch(fotoDataUrl)).blob()
+      const path = `${userId}/${Date.now()}.jpg`
+      const { error: upErr } = await supabase.storage.from('fichajes-fotos').upload(path, blob, { contentType: 'image/jpeg', upsert: false })
+      if (upErr) throw upErr
+      const { data: pub } = supabase.storage.from('fichajes-fotos').getPublicUrl(path)
+      const { error } = await supabase.from('fichajes').insert({
+        user_id: userId, tipo, lat: curCoords.lat, lng: curCoords.lng, direccion, foto_url: pub.publicUrl, dentro_geocerca: dentro, geocerca_id, distancia_m: distancia,
+      })
+      if (error) throw error
+      setFotoPreview(null)
+      stopCamera()
+      await loadHistorial()
+      setView('home')
+      if (!dentro && sucursales.length>0) setMsg(`✓ ${tipo} registrado FUERA de ${target?.nombre ?? 'sucursal'} (${distancia}m)`)
+      else setMsg(`✓ ${tipo} registrado en ${target?.nombre ?? 'sucursal'} ✓`)
+    } catch (e: any) { setMsg('Error al fichar: ' + e.message) } finally { setEnviando(false) }
   }
 
   const sucursalesOrdenadas = coords ? [...sucursales].map(s=>{
@@ -288,8 +345,8 @@ export default function Empleado() {
         {!stream && <span className="absolute text-white text-sm">Activando cámara...</span>}
       </div>
       <canvas ref={canvasRef} className="hidden" />
-      <button onClick={capturarFoto} disabled={!stream} className="w-full bg-amber-500 text-white py-3 rounded font-bold disabled:opacity-50">📸 Capturar foto</button>
-      {fotoPreview && <div><img src={fotoPreview} className="w-full rounded border" /><p className="text-xs text-green-600 text-center">Foto lista ✓</p></div>}
+      <button onClick={capturarFoto} disabled={!stream || enviando} className="w-full bg-amber-500 text-white py-3 rounded font-bold disabled:opacity-50">{enviando ? '⏳ Registrando...' : '📸 Capturar foto y registrar automáticamente'}</button>
+      {fotoPreview && !enviando && <div><img src={fotoPreview} className="w-full rounded border" /><p className="text-xs text-blue-600 text-center">Procesando...</p></div>}
 
       <div className="bg-gray-50 p-3 rounded border space-y-2">
         <label className="text-sm font-semibold">Sucursal</label>
@@ -305,10 +362,10 @@ export default function Empleado() {
         </> : <span className="text-gray-500">Obteniendo ubicación automática...</span>}
       </div>
 
-      <button onClick={fichar} disabled={enviando || !coords || !fotoPreview} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-lg disabled:opacity-50">
-        {enviando ? 'Enviando...' : `Confirmar ${ficharTipo}`}
-      </button>
+      <p className="text-xs text-center text-gray-500">Al sacar la foto queda registrado al instante — no necesitas confirmar.</p>
       {msg && <div className="p-3 rounded border text-sm" style={{ background: msg.startsWith('✓') ? '#ecfdf5' : '#fef2f2' }}>{msg}</div>}
+      {/* fallback manual por si falla auto */}
+      <button onClick={fichar} disabled={enviando || !coords || !fotoPreview} className="w-full border text-gray-500 py-2 rounded text-xs hidden">Confirmar manual (fallback)</button>
     </div>
   )
 }
