@@ -6,28 +6,34 @@ import { dentroDeGeocerca, reverseGeocode } from '../lib/geofence'
 
 type Tipo = 'entrada' | 'pausa_inicio' | 'pausa_fin' | 'salida'
 
-// helpers jornada
+// helpers jornada - individual por entrada/salida (no acumulable por día)
 function calcularJornada(fichajesAsc: any[]) {
-  // fichajesAsc ordenados ascendente
   let totalMs = 0
   let openStart: number | null = null
   for (const f of fichajesAsc) {
     const t = new Date(f.created_at).getTime()
-    if (f.tipo === 'entrada' || f.tipo === 'pausa_fin') {
-      openStart = t
-    } else if (f.tipo === 'pausa_inicio' || f.tipo === 'salida') {
-      if (openStart !== null) {
-        totalMs += t - openStart
-        openStart = null
-      }
+    if (f.tipo === 'entrada' || f.tipo === 'pausa_fin') openStart = t
+    else if (f.tipo === 'pausa_inicio' || f.tipo === 'salida') {
+      if (openStart !== null) { totalMs += t - openStart; openStart = null }
     }
   }
   const last = fichajesAsc[fichajesAsc.length - 1]
   const trabajando = !!last && (last.tipo === 'entrada' || last.tipo === 'pausa_fin')
   const enPausa = !!last && last.tipo === 'pausa_inicio'
   const finalizada = !!last && last.tipo === 'salida'
-  const inicioMs = fichajesAsc.find((f: any) => f.tipo === 'entrada') ? new Date(fichajesAsc.find((f: any) => f.tipo === 'entrada').created_at).getTime() : null
-  return { totalMs, openStart, trabajando, enPausa, finalizada, inicioMs, lastTipo: last?.tipo ?? null }
+  const inicioMs = openStart // inicio de la jornada actual abierta
+  // para finalizada, buscar inicio de la última jornada individual
+  let ultimaJornadaMs: number | null = null
+  if (finalizada) {
+    const idxSalida = fichajesAsc.length - 1
+    for (let i = idxSalida - 1; i >= 0; i--) {
+      if (fichajesAsc[i].tipo === 'entrada') {
+        ultimaJornadaMs = new Date(fichajesAsc[idxSalida].created_at).getTime() - new Date(fichajesAsc[i].created_at).getTime()
+        break
+      }
+    }
+  }
+  return { totalMs, openStart, trabajando, enPausa, finalizada, inicioMs, ultimaJornadaMs, lastTipo: last?.tipo ?? null }
 }
 
 function formatHoras(ms: number) {
@@ -173,10 +179,11 @@ export default function Empleado() {
   }).sort((a:any,b:any)=>a._dist-b._dist) : sucursales as any[]
 
   const jornada = calcularJornada(historialHoy)
+  // individual: solo la jornada actual, no acumulable del día
   const elapsedMs = (() => {
-    let ms = jornada.totalMs
-    if (jornada.trabajando && jornada.openStart) ms += now - jornada.openStart
-    return Math.max(0, ms)
+    if (jornada.trabajando && jornada.openStart) return Math.max(0, now - jornada.openStart)
+    if (jornada.finalizada && jornada.ultimaJornadaMs !== null) return Math.max(0, jornada.ultimaJornadaMs)
+    return 0
   })()
 
   const iniciarFlujo = (tipo: Tipo) => {
@@ -259,7 +266,7 @@ export default function Empleado() {
               <div className="my-4 p-4 bg-green-50 border border-green-200 rounded-xl">
                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded-full text-sm font-bold animate-pulse">● Trabajando</div>
                 <div className="text-5xl font-mono font-bold mt-3">{formatHoras(elapsedMs)}</div>
-                <div className="text-sm text-gray-600">Horas trabajadas hoy</div>
+                <div className="text-sm text-gray-600">Tiempo de esta jornada</div>
                 {jornada.inicioMs && <div className="text-xs text-gray-500">Inicio: {new Date(jornada.inicioMs).toLocaleTimeString()}</div>}
               </div>
               <button onClick={() => iniciarFlujo('salida')} className="w-full bg-red-600 text-white py-4 rounded-xl font-bold">⏹ Finalizar jornada</button>
@@ -269,7 +276,7 @@ export default function Empleado() {
               <div className="my-4 p-4 bg-gray-100 border rounded-xl">
                 <div className="inline-flex px-3 py-1 bg-gray-800 text-white rounded-full text-sm font-bold">✓ Jornada finalizada</div>
                 <div className="text-5xl font-mono font-bold mt-3">{formatHoras(elapsedMs)}</div>
-                <div className="text-sm text-gray-600">Total trabajado hoy</div>
+                <div className="text-sm text-gray-600">Duración de esta jornada</div>
               </div>
               <p className="text-sm text-gray-500 mb-3">Ya cerraste el día. Si necesitas reabrir, inicia una nueva entrada.</p>
               <button onClick={() => iniciarFlujo('entrada')} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold">Iniciar nueva jornada</button>

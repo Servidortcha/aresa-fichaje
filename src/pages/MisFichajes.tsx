@@ -11,19 +11,22 @@ type Fichaje = {
   foto_url: string | null
 }
 
-// calcula horas por día - solo lectura
-function calcularHorasDia(fichajesAsc: Fichaje[]): number {
-  let total = 0
-  let open: number | null = null
+// jornadas individuales - no acumulable: cada entrada/salida es una jornada separada
+function extraerJornadas(fichajesAsc: Fichaje[]): { entrada: Fichaje; salida: Fichaje | null; ms: number | null }[] {
+  const jornadas: { entrada: Fichaje; salida: Fichaje | null; ms: number | null }[] = []
+  let cur: Fichaje | null = null
   for (const f of fichajesAsc) {
-    const t = new Date(f.created_at).getTime()
-    if (f.tipo === 'entrada' || f.tipo === 'pausa_fin') open = t
-    else if (f.tipo === 'pausa_inicio' || f.tipo === 'salida') {
-      if (open !== null) { total += t - open; open = null }
+    if (f.tipo === 'entrada') {
+      if (cur) jornadas.push({ entrada: cur, salida: null, ms: null })
+      cur = f
+    } else if (f.tipo === 'salida' && cur) {
+      const ms = new Date(f.created_at).getTime() - new Date(cur.created_at).getTime()
+      jornadas.push({ entrada: cur, salida: f, ms })
+      cur = null
     }
   }
-  // si quedó abierto (sin salida), no se cuenta hasta cerrar - solo total cerrado
-  return total
+  if (cur) jornadas.push({ entrada: cur, salida: null, ms: null })
+  return jornadas
 }
 function formatHoras(ms: number): string {
   const m = Math.floor(ms / 60000)
@@ -51,17 +54,14 @@ export default function MisFichajes(){
       if(!map.has(dia)) map.set(dia, [])
       map.get(dia)!.push(f)
     }
-    // ordenar días desc
     const entries = Array.from(map.entries()).sort((a,b)=> b[0].localeCompare(a[0]))
     return entries.map(([dia, list])=>{
       const asc = [...list].sort((a,b)=> a.created_at.localeCompare(b.created_at))
-      const ms = calcularHorasDia(asc)
-      const tieneAbierto = asc.length>0 && (asc[asc.length-1].tipo === 'entrada' || asc[asc.length-1].tipo === 'pausa_fin')
-      return { dia, list: list.sort((a,b)=> a.created_at.localeCompare(b.created_at)), ms, tieneAbierto }
+      const jornadas = extraerJornadas(asc)
+      const tieneAbierto = jornadas.some(j=> j.salida===null)
+      return { dia, list: list.sort((a,b)=> a.created_at.localeCompare(b.created_at)), jornadas, tieneAbierto }
     })
   },[fichajes])
-
-  const totalGeneral = useMemo(()=> porDia.reduce((acc, d)=> acc + d.ms, 0), [porDia])
 
   if(loading) return <div className="p-10 text-center">Cargando fichajes...</div>
 
@@ -77,8 +77,8 @@ export default function MisFichajes(){
 
       <div className="bg-white p-4 rounded-xl shadow flex gap-4 text-center">
         <div className="flex-1 border rounded p-3 bg-gray-50">
-          <div className="text-xs text-gray-600">Total acumulado</div>
-          <div className="text-2xl font-mono font-bold">{formatHoras(totalGeneral)}</div>
+          <div className="text-xs text-gray-600">Jornadas</div>
+          <div className="text-2xl font-bold">{porDia.flatMap(d=>d.jornadas).length}</div>
         </div>
         <div className="flex-1 border rounded p-3">
           <div className="text-xs text-gray-600">Días con fichajes</div>
@@ -92,17 +92,25 @@ export default function MisFichajes(){
 
       {porDia.length===0 && <div className="bg-white p-8 rounded-xl shadow text-center text-gray-500">Aún no tienes fichajes</div>}
 
-      {porDia.map(({ dia, list, ms, tieneAbierto })=>(
+      {porDia.map(({ dia, list, jornadas, tieneAbierto })=>(
         <div key={dia} className="bg-white rounded-xl shadow overflow-hidden">
-          <div className="px-4 py-3 border-b flex justify-between items-center bg-gray-50">
-            <div>
-              <div className="font-bold">{new Date(dia+'T12:00:00').toLocaleDateString('es-AR', { weekday:'long', day:'2-digit', month:'long', year:'numeric' })}</div>
-              <div className="text-xs text-gray-500">{dia} · {list.length} fichajes</div>
+          <div className="px-4 py-3 border-b bg-gray-50">
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="font-bold">{new Date(dia+'T12:00:00').toLocaleDateString('es-AR', { weekday:'long', day:'2-digit', month:'long', year:'numeric' })}</div>
+                <div className="text-xs text-gray-500">{dia} · {jornadas.length} jornada(s) · {list.length} fichajes {tieneAbierto && <span className="ml-2 bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">en curso</span>}</div>
+              </div>
             </div>
-            <div className="text-right">
-              <div className="text-lg font-mono font-bold">{formatHoras(ms)}{tieneAbierto && <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">en curso</span>}</div>
-              <div className="text-xs text-gray-500">horas del día</div>
-            </div>
+            {jornadas.length>0 && (
+              <div className="mt-3 grid gap-2">
+                {jornadas.map((j, idx)=>(
+                  <div key={idx} className="flex justify-between items-center bg-white border rounded p-2 text-sm">
+                    <span> Jornada {idx+1}: {new Date(j.entrada.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} → {j.salida ? new Date(j.salida.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '...'}</span>
+                    <span className="font-mono font-bold">{j.ms !== null ? formatHoras(j.ms) : '—'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="divide-y">
             {list.map(f=>(
