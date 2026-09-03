@@ -35,10 +35,21 @@ function formatHoras(ms: number): string {
   return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')} hs`
 }
 
+function getWeekRange(dateStr:string){
+  const d=new Date(dateStr+'T12:00:00')
+  const day=d.getDay() // 0 dom
+  const diff = day===0 ? -6 : 1-day // lunes inicio
+  const mon=new Date(d); mon.setDate(d.getDate()+diff)
+  const sun=new Date(mon); sun.setDate(mon.getDate()+6)
+  return { start: mon.toISOString().slice(0,10), end: sun.toISOString().slice(0,10) }
+}
+
 export default function MisFichajes(){
   const { userId } = useAuth()
   const [fichajes, setFichajes] = useState<Fichaje[]>([])
   const [loading, setLoading] = useState(true)
+  const [filtro, setFiltro] = useState<'dia'|'semana'|'mes'|'todo'>('todo')
+  const [fechaFiltro, setFechaFiltro] = useState<string>(new Date().toISOString().slice(0,10))
 
   useEffect(()=>{
     if(!userId) return
@@ -47,9 +58,20 @@ export default function MisFichajes(){
       .then(({ data })=>{ setFichajes((data as any) ?? []); setLoading(false) })
   },[userId])
 
+  const fichajesFiltrados = useMemo(()=>{
+    if(filtro==='todo') return fichajes
+    if(filtro==='dia') return fichajes.filter(f=> f.created_at.slice(0,10)===fechaFiltro)
+    if(filtro==='mes') return fichajes.filter(f=> f.created_at.slice(0,7)===fechaFiltro.slice(0,7))
+    if(filtro==='semana'){
+      const { start, end } = getWeekRange(fechaFiltro)
+      return fichajes.filter(f=>{ const d=f.created_at.slice(0,10); return d>=start && d<=end })
+    }
+    return fichajes
+  },[fichajes, filtro, fechaFiltro])
+
   const porDia = useMemo(()=>{
     const map = new Map<string, Fichaje[]>()
-    for(const f of fichajes){
+    for(const f of fichajesFiltrados){
       const dia = f.created_at.slice(0,10)
       if(!map.has(dia)) map.set(dia, [])
       map.get(dia)!.push(f)
@@ -61,7 +83,7 @@ export default function MisFichajes(){
       const tieneAbierto = jornadas.some(j=> j.salida===null)
       return { dia, list: list.sort((a,b)=> a.created_at.localeCompare(b.created_at)), jornadas, tieneAbierto }
     })
-  },[fichajes])
+  },[fichajesFiltrados])
 
   if(loading) return <div className="p-10 text-center">Cargando fichajes...</div>
 
@@ -75,18 +97,30 @@ export default function MisFichajes(){
         <Link to="/fichar" className="px-4 py-2 bg-red-600 text-white rounded">← Fichar</Link>
       </div>
 
-      <div className="bg-white p-4 rounded-xl shadow flex gap-4 text-center">
-        <div className="flex-1 border rounded p-3 bg-gray-50">
-          <div className="text-xs text-gray-600">Jornadas</div>
-          <div className="text-2xl font-bold">{porDia.flatMap(d=>d.jornadas).length}</div>
+      <div className="bg-white p-4 rounded-xl shadow space-y-3">
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="text-sm font-medium">Filtrar:</span>
+          {(['todo','dia','semana','mes'] as const).map(m=>(
+            <button key={m} onClick={()=>setFiltro(m)} className={`px-3 py-1 rounded-full text-sm border ${filtro===m?'bg-red-600 text-white border-red-600':'bg-white'}`}>{m==='todo'?'Todo':m==='dia'?'Día':m==='semana'?'Semana':'Mes'}</button>
+          ))}
+          {filtro==='dia' && <input type="date" value={fechaFiltro} onChange={e=>setFechaFiltro(e.target.value)} className="border rounded px-3 py-1" />}
+          {filtro==='semana' && <input type="date" value={fechaFiltro} onChange={e=>setFechaFiltro(e.target.value)} className="border rounded px-3 py-1" />}
+          {filtro==='mes' && <input type="month" value={fechaFiltro.slice(0,7)} onChange={e=>setFechaFiltro(e.target.value+'-01')} className="border rounded px-3 py-1" />}
+          {filtro!=='todo' && <span className="text-xs text-gray-500">{filtro==='semana' ? `Semana ${getWeekRange(fechaFiltro).start} al ${getWeekRange(fechaFiltro).end}` : ''} · {fichajesFiltrados.length} fichajes</span>}
         </div>
-        <div className="flex-1 border rounded p-3">
-          <div className="text-xs text-gray-600">Días con fichajes</div>
-          <div className="text-2xl font-bold">{porDia.length}</div>
-        </div>
-        <div className="flex-1 border rounded p-3">
-          <div className="text-xs text-gray-600">Fichajes totales</div>
-          <div className="text-2xl font-bold">{fichajes.length}</div>
+        <div className="flex gap-4 text-center">
+          <div className="flex-1 border rounded p-3 bg-gray-50">
+            <div className="text-xs text-gray-600">Jornadas</div>
+            <div className="text-2xl font-bold">{porDia.flatMap(d=>d.jornadas).length}</div>
+          </div>
+          <div className="flex-1 border rounded p-3">
+            <div className="text-xs text-gray-600">Días con fichajes</div>
+            <div className="text-2xl font-bold">{porDia.length}</div>
+          </div>
+          <div className="flex-1 border rounded p-3">
+            <div className="text-xs text-gray-600">Fichajes totales</div>
+            <div className="text-2xl font-bold">{fichajesFiltrados.length}</div>
+          </div>
         </div>
       </div>
 
