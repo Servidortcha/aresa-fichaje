@@ -94,7 +94,6 @@ export default function Dashboard(){
           <div className="w-12 h-12 rounded-xl bg-red-600 text-white grid place-items-center text-xl group-hover:scale-110 transition">＋</div>
           <div className="flex-1">
             <div className="font-bold text-gray-900">Crear nueva sucursal</div>
-            <div className="text-sm text-gray-500">DMS <span className="font-mono">32°14'39.7"S 63°59'07.4"W</span> · click en mapa · radio variable 50m-2km</div>
           </div>
           <span className="text-gray-400 group-hover:text-red-600">→</span>
         </Link>
@@ -102,7 +101,6 @@ export default function Dashboard(){
           <div className="w-12 h-12 rounded-xl bg-gray-900 text-white grid place-items-center text-xl group-hover:scale-110 transition">☰</div>
           <div className="flex-1">
             <div className="font-bold text-gray-900">Ver registro de fichajes</div>
-            <div className="text-sm text-gray-500">Tabla · mapa · filtros · Excel · editar manual</div>
           </div>
           <span className="text-gray-400 group-hover:text-gray-900">→</span>
         </Link>
