@@ -63,6 +63,33 @@ export default function Fichajes(){
     })
     const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Fichajes'); XLSX.writeFile(wb, `Aresa_Fichajes_${new Date().toISOString().slice(0,10)}.xlsx`)
   }
+  const exportPorSucursal=()=>{
+    const source = filtrados.length ? filtrados : fichajes
+    const porSuc = new Map<string, typeof source>()
+    for(const f of source){
+      const suc = f.geocerca_id ? sucMap.get(f.geocerca_id)?.nombre ?? 'Fuera' : 'Fuera'
+      if(!porSuc.has(suc)) porSuc.set(suc, [])
+      porSuc.get(suc)!.push(f)
+    }
+    const wb=XLSX.utils.book_new()
+    for(const [suc, list] of porSuc){
+      const rows=list.map(f=>{
+        const s=f.geocerca_id ? sucMap.get(f.geocerca_id) : null
+        return { Fecha:new Date(f.created_at).toLocaleString(), Empleado:f.profiles?.nombre, Email:f.profiles?.email, Tipo:f.tipo, Sucursal:s?.nombre ?? 'Fuera', Provincia:(s as any)?.provincia ?? '', Lat:f.lat, Lng:f.lng, Direccion:f.direccion, Dentro:f.dentro_geocerca?'SI':'NO', Distancia_m:f.distancia_m, Foto:f.foto_url }
+      })
+      const ws=XLSX.utils.json_to_sheet(rows)
+      ws['!cols']=[{wch:18},{wch:18},{wch:28},{wch:10},{wch:18},{wch:12},{wch:12},{wch:12},{wch:30},{wch:8},{wch:12},{wch:40}]
+      XLSX.utils.book_append_sheet(wb, ws, suc.slice(0,31))
+    }
+    // hoja todos
+    const allRows=source.map(f=>{
+      const s=f.geocerca_id ? sucMap.get(f.geocerca_id) : null
+      return { Fecha:new Date(f.created_at).toLocaleString(), Empleado:f.profiles?.nombre, Email:f.profiles?.email, Tipo:f.tipo, Sucursal:s?.nombre ?? 'Fuera', Provincia:(s as any)?.provincia ?? '', Lat:f.lat, Lng:f.lng, Direccion:f.direccion, Dentro:f.dentro_geocerca?'SI':'NO', Distancia_m:f.distancia_m, Foto:f.foto_url }
+    })
+    const wsAll=XLSX.utils.json_to_sheet(allRows)
+    XLSX.utils.book_append_sheet(wb, wsAll, 'Todos')
+    XLSX.writeFile(wb, `Aresa_Fichajes_por_Sucursal_${new Date().toISOString().slice(0,10)}.xlsx`)
+  }
 
   const openEdit = (f:Fichaje)=>{
     setEditing(f)
@@ -144,8 +171,9 @@ export default function Fichajes(){
             {sucursales.map(s=> <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </select>
           <input type="date" value={filtroFecha} onChange={e=>setFiltroFecha(e.target.value)} className="border rounded px-3 py-2 w-full lg:w-auto" />
-          <div className="flex gap-2 w-full lg:w-auto">
-            <button onClick={exportExcel} className="flex-1 lg:flex-none bg-green-600 text-white px-4 py-2 rounded text-sm">Exportar Excel</button>
+          <div className="flex flex-wrap gap-2 w-full lg:w-auto">
+            <button onClick={exportExcel} className="flex-1 lg:flex-none bg-green-600 text-white px-4 py-2 rounded text-sm">Exportar (filtro)</button>
+            <button onClick={exportPorSucursal} className="flex-1 lg:flex-none bg-amber text-white px-4 py-2 rounded text-sm">Por sucursal</button>
             <button onClick={()=>setShowManual(v=>!v)} className="flex-1 lg:flex-none bg-ink text-paper px-4 py-2 rounded text-sm">+ Manual</button>
           </div>
           <span className="text-xs sm:text-sm text-gray-500 col-span-1 sm:col-span-2 lg:col-span-1">{filtrados.length} registros · {usuarios.length} usuarios</span>
