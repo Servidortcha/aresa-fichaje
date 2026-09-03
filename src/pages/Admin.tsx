@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase, type Fichaje, type Geocerca } from '../lib/supabase'
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents } from 'react-leaflet'
+import { parseCoordinate, decimalToDMS } from '../lib/geofence'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import * as XLSX from 'xlsx'
@@ -33,6 +34,7 @@ export default function Admin() {
 
   // form sucursal
   const [form, setForm] = useState({ id: null as string | null, nombre: '', direccion: '', provincia: 'Córdoba', lat: -32.2426, lng: -63.542, radio_m: 300, activa: true })
+  const [dmsInput, setDmsInput] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
 
   const load = async () => {
@@ -120,7 +122,8 @@ export default function Admin() {
 
   const editar = (s: Geocerca) => {
     setForm({ id: s.id, nombre: s.nombre, direccion: (s as any).direccion ?? '', provincia: (s as any).provincia ?? 'Córdoba', lat: s.lat, lng: s.lng, radio_m: s.radio_m, activa: s.activa })
-    setMsg('Editando: '+s.nombre+' — modifica y guarda')
+    setDmsInput(decimalToDMS(s.lat, s.lng))
+    setMsg('Editando: '+s.nombre+' — DMS: '+decimalToDMS(s.lat,s.lng))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -166,9 +169,19 @@ export default function Admin() {
             {PROVINCIAS.map(p=> <option key={p} value={p}>{p}</option>)}
           </select>
           <input placeholder="Dirección (opcional, ej: Av. Colón 123)" value={form.direccion} onChange={e=>setForm({...form, direccion:e.target.value})} className="border rounded px-3 py-2 md:col-span-3" />
+          {/* DMS input */}
+          <div className="md:col-span-3 flex gap-2">
+            <input placeholder="Pega coordenadas DMS: 32°14'39.7&quot;S 63°59'07.4&quot;W" value={dmsInput} onChange={e=>setDmsInput(e.target.value)} className="flex-1 border rounded px-3 py-2 font-mono text-sm" />
+            <button onClick={()=>{
+              const p = parseCoordinate(dmsInput)
+              if(p){ setForm(f=>({...f, lat: Number(p.lat.toFixed(6)), lng: Number(p.lng.toFixed(6))})); setMsg(`DMS convertido: ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)} → ${decimalToDMS(p.lat,p.lng)}`) }
+              else setMsg('Formato no reconocido. Ej válido: 32°14\'39.7"S 63°59\'07.4"W  o  -32.2426, -63.542')
+            }} className="px-4 py-2 bg-blue-600 text-white rounded whitespace-nowrap">Convertir DMS → Dec</button>
+          </div>
+          <p className="md:col-span-3 text-xs text-gray-500 -mt-2">Soporta: <code>32°14'39.7"S 63°59'07.4"W</code> · <code>32 14 39.7 S 63 59 07.4 W</code> · <code>-32.2426, -63.542</code> — también haz click en el mapa.</p>
           <div className="flex gap-2">
-            <input type="number" step="0.00001" value={form.lat} onChange={e=>setForm({...form, lat:parseFloat(e.target.value)})} className="border rounded px-3 py-2 w-full" placeholder="Lat" />
-            <input type="number" step="0.00001" value={form.lng} onChange={e=>setForm({...form, lng:parseFloat(e.target.value)})} className="border rounded px-3 py-2 w-full" placeholder="Lng" />
+            <input type="number" step="0.00001" value={form.lat} onChange={e=>setForm({...form, lat:parseFloat(e.target.value) || 0})} className="border rounded px-3 py-2 w-full" placeholder="Lat dec" />
+            <input type="number" step="0.00001" value={form.lng} onChange={e=>setForm({...form, lng:parseFloat(e.target.value) || 0})} className="border rounded px-3 py-2 w-full" placeholder="Lng dec" />
           </div>
           <div className="flex items-center gap-2">
             <label className="text-sm whitespace-nowrap">Radio (m):</label>
@@ -180,7 +193,7 @@ export default function Admin() {
         <div className="flex gap-2 mt-3">
           <button onClick={guardarSucursal} className="bg-red-600 text-white px-6 py-2 rounded font-semibold">{form.id ? 'Guardar cambios' : 'Crear sucursal'}</button>
           {form.id && <button onClick={()=>setForm({ id:null, nombre:'', direccion:'', provincia:'Córdoba', lat:-32.2426, lng:-63.542, radio_m:300, activa:true })} className="border px-4 py-2 rounded">Cancelar</button>}
-          <span className="text-sm text-gray-500 self-center">Tip: haz click en el mapa para tomar coordenadas. El radio lo definís vos (ej: obra 150m, planta 500m).</span>
+          <span className="text-sm text-gray-500 self-center">Dec actual: {form.lat.toFixed(6)}, {form.lng.toFixed(6)} · DMS: {decimalToDMS(form.lat, form.lng)} — click mapa o pega DMS.</span>
         </div>
         {msg && <div className="mt-3 text-sm p-2 bg-blue-50 border border-blue-200 rounded">{msg}</div>}
         <div className="mt-3 h-[380px] rounded overflow-hidden border">
