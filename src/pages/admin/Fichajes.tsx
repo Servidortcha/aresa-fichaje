@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import * as XLSX from 'xlsx'
+import { distanciaMetros } from '../../lib/geofence'
 
 delete (L.Icon.Default.prototype as any)._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -12,21 +13,36 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
+type Profile = { id:string, nombre:string, email:string, rol:string }
+
 export default function Fichajes(){
   const [fichajes, setFichajes] = useState<Fichaje[]>([])
   const [sucursales, setSucursales] = useState<Geocerca[]>([])
+  const [usuarios, setUsuarios] = useState<Profile[]>([])
   const [filtroTipo, setFiltroTipo] = useState('')
   const [filtroEmpleado, setFiltroEmpleado] = useState('')
   const [filtroFecha, setFiltroFecha] = useState('')
   const [filtroSucursal, setFiltroSucursal] = useState('')
+  const [editing, setEditing] = useState<Fichaje | null>(null)
+  const [editForm, setEditForm] = useState({ tipo:'entrada' as Fichaje['tipo'], sucursal_id:'', fecha:'', hora:'' })
+  const [showManual, setShowManual] = useState(false)
+  const [manual, setManual] = useState({ user_id:'', tipo:'entrada' as Fichaje['tipo'], sucursal_id:'', fecha:'', hora:'' })
+  const [msg, setMsg] = useState<string|null>(null)
 
   const load = async()=>{
-    const { data } = await supabase.from('fichajes').select('*, profiles(nombre,email)').order('created_at',{ascending:false}).limit(300)
+    const { data } = await supabase.from('fichajes').select('*, profiles(nombre,email)').order('created_at',{ascending:false}).limit(400)
     setFichajes((data as any) ?? [])
     const { data:g } = await supabase.from('geocercas').select('*').order('nombre')
     setSucursales((g as any) ?? [])
+    const { data:u } = await supabase.from('profiles').select('id,nombre,email,rol').order('nombre')
+    setUsuarios((u as any) ?? [])
+    // default manual fecha hoy
+    const now = new Date()
+    const f = now.toISOString().slice(0,10)
+    const h = now.toTimeString().slice(0,5)
+    setManual(m=> ({...m, fecha: f, hora: h}))
   }
-  useEffect(()=>{ load(); const ch=supabase.channel('fichajes-admin').on('postgres_changes',{event:'INSERT',schema:'public',table:'fichajes'},()=>load()).subscribe(); return()=>{supabase.removeChannel(ch)} },[])
+  useEffect(()=>{ load(); const ch=supabase.channel('fichajes-admin').on('postgres_changes',{event:'*',schema:'public',table:'fichajes'},()=>load()).subscribe(); return()=>{supabase.removeChannel(ch)} },[])
 
   const sucMap = new Map(sucursales.map(s=>[s.id,s]))
   const filtrados = fichajes.filter(f=>{
@@ -48,14 +64,79 @@ export default function Fichajes(){
     const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Fichajes'); XLSX.writeFile(wb, `Aresa_Fichajes_${new Date().toISOString().slice(0,10)}.xlsx`)
   }
 
+  const openEdit = (f:Fichaje)=>{
+    setEditing(f)
+    const d = new Date(f.created_at)
+    setEditForm({ tipo:f.tipo, sucursal_id: f.geocerca_id ?? '', fecha: d.toISOString().slice(0,10), hora: d.toTimeString().slice(0,5) })
+    setMsg(null)
+  }
+
+  const saveEdit = async()=>{
+    if(!editing) return
+    const suc = sucursales.find(s=>s.id===editForm.sucursal_id)
+    const newDate = new Date(`${editForm.fecha}T${editForm.hora}:00`)
+    // recalcular lat/lng/distancia si cambia sucursal
+    let lat = editing.lat, lng = editing.lng, distancia = editing.distancia_m, dentro = editing.dentro_geocerca
+    let geocerca_id: string | null = editForm.sucursal_id || null
+    if(suc){
+      lat = suc.lat; lng = suc.lng
+      const d = distanciaMetros(editing.lat, editing.lng, suc.lat, suc.lng)
+      distancia = Math.round(d); dentro = d <= suc.radio_m
+    }
+    // si no hay sucursal seleccionada, mantener coords originales pero marcar fuera
+    if(!suc){
+      geocerca_id = null; dentro = false
+    }
+    const { error } = await supabase.from('fichajes').update({
+      tipo: editForm.tipo,
+      geocerca_id,
+      lat, lng,
+      distancia_m: distancia,
+      dentro_geocerca: dentro,
+      created_at: newDate.toISOString(),
+    }).eq('id', editing.id)
+    if(error) setMsg('Error: '+error.message)
+    else { setEditing(null); load() }
+  }
+
+  const crearManual = async()=>{
+    if(!manual.user_id) return setMsg('Elegí usuario')
+    if(!manual.sucursal_id) return setMsg('Elegí sucursal')
+    const suc = sucursales.find(s=>s.id===manual.sucursal_id)
+    if(!suc) return setMsg('Sucursal no encontrada')
+    const dt = new Date(`${manual.fecha}T${manual.hora}:00`)
+    // verifica RLS admin - necesita migración supabase_migracion_admin_fichajes.sql
+    const { error } = await supabase.from('fichajes').insert({
+      user_id: manual.user_id,
+      tipo: manual.tipo,
+      lat: suc.lat,
+      lng: suc.lng,
+      direccion: (suc as any).direccion ?? suc.nombre,
+      foto_url: null,
+      dentro_geocerca: true,
+      geocerca_id: suc.id,
+      distancia_m: 0,
+      created_at: dt.toISOString(),
+    })
+    if(error) setMsg('Error crear: '+error.message+' — ¿Ejecutaste supabase_migracion_admin_fichajes.sql ?')
+    else { setMsg('Fichaje manual creado ✓'); setShowManual(false); load() }
+  }
+
+  const borrar = async(id:string)=>{
+    if(!confirm('¿Borrar fichaje?')) return
+    const { error } = await supabase.from('fichajes').delete().eq('id', id)
+    if(error) alert(error.message); else load()
+  }
+
   const center:[number,number]=sucursales[0]?[sucursales[0].lat,sucursales[0].lng]:filtrados[0]?[filtrados[0].lat,filtrados[0].lng]:[-32.2426,-63.542]
   return (
     <div className="space-y-4">
       <div className="bg-white p-4 rounded-xl shadow flex flex-wrap gap-3 items-end">
-        <h2 className="text-xl font-bold w-full">Registro de fichajes</h2>
+        <h2 className="text-xl font-bold w-full">Registro de fichajes — Admin editable</h2>
+        <p className="w-full text-sm text-gray-500 -mt-2">Cada fichaje es un evento. Puedes cambiar sucursal, fecha/hora y tipo. Crear manual asignando usuario y sucursal.</p>
         <input value={filtroEmpleado} onChange={e=>setFiltroEmpleado(e.target.value)} placeholder="Filtrar empleado" className="border rounded px-3 py-2" />
         <select value={filtroTipo} onChange={e=>setFiltroTipo(e.target.value)} className="border rounded px-3 py-2">
-          <option value="">Todos los tipos</option><option value="entrada">Entrada</option><option value="pausa_inicio">Pausa inicio</option><option value="pausa_fin">Pausa fin</option><option value="salida">Salida</option>
+          <option value="">Todos los tipos</option><option value="entrada">Entrada</option><option value="salida">Salida</option>
         </select>
         <select value={filtroSucursal} onChange={e=>setFiltroSucursal(e.target.value)} className="border rounded px-3 py-2 min-w-[180px]">
           <option value="">Todas las sucursales</option><option value="__sin__">Fuera de sucursal</option>
@@ -63,15 +144,71 @@ export default function Fichajes(){
         </select>
         <input type="date" value={filtroFecha} onChange={e=>setFiltroFecha(e.target.value)} className="border rounded px-3 py-2" />
         <button onClick={exportExcel} className="bg-green-600 text-white px-4 py-2 rounded">Exportar Excel</button>
-        <span className="text-sm text-gray-500">{filtrados.length} registros</span>
+        <button onClick={()=>setShowManual(v=>!v)} className="bg-red-600 text-white px-4 py-2 rounded">+ Fichaje manual</button>
+        <span className="text-sm text-gray-500">{filtrados.length} registros · {usuarios.length} usuarios</span>
       </div>
 
+      {showManual && (
+        <div className="bg-white p-4 rounded-xl shadow space-y-3">
+          <h3 className="font-bold">Crear fichaje manual</h3>
+          <div className="grid md:grid-cols-2 gap-3">
+            <select value={manual.user_id} onChange={e=>setManual({...manual, user_id:e.target.value})} className="border rounded px-3 py-2">
+              <option value="">Elegí usuario ({usuarios.length})</option>
+              {usuarios.map(u=> <option key={u.id} value={u.id}>{u.nombre} · {u.email} · {u.rol}</option>)}
+            </select>
+            <select value={manual.sucursal_id} onChange={e=>setManual({...manual, sucursal_id:e.target.value})} className="border rounded px-3 py-2">
+              <option value="">Elegí sucursal</option>
+              {sucursales.map(s=> <option key={s.id} value={s.id}>{s.nombre} · {(s as any).provincia ?? ''} · {s.lat.toFixed(4)},{s.lng.toFixed(4)}</option>)}
+            </select>
+            <select value={manual.tipo} onChange={e=>setManual({...manual, tipo:e.target.value as any})} className="border rounded px-3 py-2">
+              <option value="entrada">Entrada</option><option value="salida">Salida</option>
+            </select>
+            <div className="flex gap-2">
+              <input type="date" value={manual.fecha} onChange={e=>setManual({...manual, fecha:e.target.value})} className="border rounded px-3 py-2 flex-1" />
+              <input type="time" value={manual.hora} onChange={e=>setManual({...manual, hora:e.target.value})} className="border rounded px-3 py-2 w-32" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={crearManual} className="bg-red-600 text-white px-6 py-2 rounded font-bold">Crear fichaje</button>
+            <button onClick={()=>setShowManual(false)} className="border px-4 py-2 rounded">Cancelar</button>
+          </div>
+          <p className="text-xs text-gray-500">Se guardará con coordenadas de la sucursal y marcado como dentro. Si no ejecutaste la migración RLS, te dará error — corre <code>supabase_migracion_admin_fichajes.sql</code>.</p>
+        </div>
+      )}
+
+      {msg && <div className="bg-blue-50 border border-blue-200 p-3 rounded text-sm">{msg}</div>}
+
+      {editing && (
+        <div className="fixed inset-0 bg-black/50 grid place-items-center z-50 p-4" onClick={()=>setEditing(null)}>
+          <div className="bg-white rounded-xl p-5 w-full max-w-lg space-y-3" onClick={e=>e.stopPropagation()}>
+            <h3 className="font-bold">Editar fichaje — {editing.profiles?.nombre}</h3>
+            <p className="text-xs text-gray-500">{editing.id}</p>
+            <select value={editForm.tipo} onChange={e=>setEditForm({...editForm, tipo:e.target.value as any})} className="w-full border rounded px-3 py-2">
+              <option value="entrada">Entrada</option><option value="salida">Salida</option>
+            </select>
+            <select value={editForm.sucursal_id} onChange={e=>setEditForm({...editForm, sucursal_id:e.target.value})} className="w-full border rounded px-3 py-2">
+              <option value="">Sin sucursal (fuera)</option>
+              {sucursales.map(s=> <option key={s.id} value={s.id}>{s.nombre} · {s.lat.toFixed(4)},{s.lng.toFixed(4)}</option>)}
+            </select>
+            <div className="flex gap-2">
+              <input type="date" value={editForm.fecha} onChange={e=>setEditForm({...editForm, fecha:e.target.value})} className="border rounded px-3 py-2 flex-1" />
+              <input type="time" value={editForm.hora} onChange={e=>setEditForm({...editForm, hora:e.target.value})} className="border rounded px-3 py-2 w-32" />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={saveEdit} className="flex-1 bg-red-600 text-white py-2 rounded font-bold">Guardar cambios</button>
+              <button onClick={()=>setEditing(null)} className="flex-1 border py-2 rounded">Cancelar</button>
+            </div>
+            <p className="text-xs text-gray-500">Cambiar sucursal recalculará lat/lng a la sucursal y distancia. Fecha/hora se guarda en UTC.</p>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white p-4 rounded-xl shadow">
-        <div className="h-[420px] rounded overflow-hidden border">
+        <div className="h-[380px] rounded overflow-hidden border">
           <MapContainer center={center} zoom={sucursales.length?6:5} style={{height:'100%',width:'100%'}}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
-            {sucursales.map(s=> <Circle key={s.id} center={[s.lat,s.lng]} radius={s.radio_m} pathOptions={{ color:'#9ca3af', fillOpacity:0.1 }}><Popup>{s.nombre} · {s.radio_m} m</Popup></Circle>)}
-            {filtrados.map(f=> <Marker key={f.id} position={[f.lat,f.lng]}><Popup><b>{f.profiles?.nombre}</b> - {f.tipo}<br/>{new Date(f.created_at).toLocaleString()}<br/>{f.direccion}<br/>{f.dentro_geocerca?'✓ Dentro':`⚠ Fuera (${f.distancia_m} m)`}<br/><a href={f.foto_url??'#'} target="_blank" rel="noreferrer">Ver foto</a></Popup></Marker>)}
+            {sucursales.map(s=> <Circle key={s.id} center={[s.lat,s.lng]} radius={s.radio_m} pathOptions={{ color:'#9ca3af', fillOpacity:0.08 }}><Popup>{s.nombre} · {s.radio_m} m</Popup></Circle>)}
+            {filtrados.slice(0,100).map(f=> <Marker key={f.id} position={[f.lat,f.lng]}><Popup><b>{f.profiles?.nombre}</b> - {f.tipo}<br/>{new Date(f.created_at).toLocaleString()}<br/>{f.direccion}<br/><a href={f.foto_url??'#'} target="_blank" rel="noreferrer">Ver foto</a></Popup></Marker>)}
           </MapContainer>
         </div>
       </div>
@@ -79,11 +216,11 @@ export default function Fichajes(){
       <div className="bg-white rounded-xl shadow overflow-hidden">
         <div className="overflow-auto max-h-[700px]">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 sticky top-0"><tr><th className="p-2 text-left">Fecha</th><th className="p-2 text-left">Empleado</th><th className="p-2">Tipo</th><th className="p-2 text-left">Sucursal</th><th className="p-2">Ubicación</th><th className="p-2">Foto</th></tr></thead>
+            <thead className="bg-gray-50 sticky top-0"><tr><th className="p-2 text-left">Fecha</th><th className="p-2 text-left">Empleado</th><th className="p-2">Tipo</th><th className="p-2 text-left">Sucursal</th><th className="p-2">Ubicación</th><th className="p-2">Foto</th><th className="p-2">Acciones</th></tr></thead>
             <tbody>
               {filtrados.map(f=>{
                 const suc=f.geocerca_id? sucMap.get(f.geocerca_id):null
-                return <tr key={f.id} className="border-t hover:bg-gray-50"><td className="p-2 whitespace-nowrap">{new Date(f.created_at).toLocaleString()}</td><td className="p-2"><div className="font-medium">{f.profiles?.nombre}</div><div className="text-xs text-gray-500">{f.profiles?.email}</div></td><td className="p-2 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${f.tipo==='entrada'?'bg-green-100 text-green-700':f.tipo==='salida'?'bg-red-100 text-red-700':'bg-yellow-100 text-yellow-800'}`}>{f.tipo}</span></td><td className="p-2">{suc? <><b>{suc.nombre}</b><div className="text-xs text-gray-500">{f.dentro_geocerca?'✓ Dentro':`⚠ ${f.distancia_m}m fuera`}</div></>:<span className="text-red-600 font-bold">Fuera</span>}</td><td className="p-2"><a href={`https://www.google.com/maps?q=${f.lat},${f.lng}`} target="_blank" rel="noreferrer" className="text-blue-600 underline">{f.lat.toFixed(4)}, {f.lng.toFixed(4)}</a><div className="text-xs text-gray-500 max-w-[260px] truncate">{f.direccion}</div></td><td className="p-2">{f.foto_url? <a href={f.foto_url} target="_blank" rel="noreferrer"><img src={f.foto_url} className="w-14 h-14 object-cover rounded border"/></a>:'-'}</td></tr>
+                return <tr key={f.id} className="border-t hover:bg-gray-50"><td className="p-2 whitespace-nowrap text-xs">{new Date(f.created_at).toLocaleString()}</td><td className="p-2"><div className="font-medium">{f.profiles?.nombre}</div><div className="text-xs text-gray-500">{f.profiles?.email}</div></td><td className="p-2 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${f.tipo==='entrada'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`}>{f.tipo}</span></td><td className="p-2 text-xs">{suc? <><b>{suc.nombre}</b><div className="text-gray-500">{f.dentro_geocerca?'✓ Dentro':`⚠ ${f.distancia_m}m fuera`}</div></>:<span className="text-red-600">Fuera</span>}</td><td className="p-2 text-xs"><a href={`https://www.google.com/maps?q=${f.lat},${f.lng}`} target="_blank" rel="noreferrer" className="text-blue-600 underline">{f.lat.toFixed(4)}, {f.lng.toFixed(4)}</a></td><td className="p-2">{f.foto_url? <a href={f.foto_url} target="_blank" rel="noreferrer"><img src={f.foto_url} className="w-12 h-12 object-cover rounded border"/></a>:'—'}</td><td className="p-2 flex gap-1"><button onClick={()=>openEdit(f)} className="px-2 py-1 border rounded text-xs bg-white">Editar</button><button onClick={()=>borrar(f.id)} className="px-2 py-1 bg-red-50 text-red-700 border border-red-200 rounded text-xs">Borrar</button></td></tr>
               })}
             </tbody>
           </table>
