@@ -20,12 +20,12 @@ export default function Sucursales(){
   const center:[number,number] = sucursales[0] ? [sucursales[0].lat, sucursales[0].lng] : [-32.2426, -63.542]
   return (
     <div className="space-y-4">
-      <div className="bg-white p-4 rounded-xl shadow flex justify-between items-center">
-        <h2 className="text-xl font-bold">Sucursales / Frentes ({sucursales.length})</h2>
-        <Link to="/admin/sucursales/nueva" className="bg-red-600 text-white px-4 py-2 rounded">+ Nueva sucursal</Link>
+      <div className="bg-white p-4 rounded-xl shadow flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
+        <h2 className="text-lg sm:text-xl font-bold">Sucursales / Frentes ({sucursales.length})</h2>
+        <Link to="/admin/sucursales/nueva" className="bg-ink text-paper px-4 py-2 rounded-full text-sm font-medium w-full sm:w-auto text-center">+ Nueva sucursal</Link>
       </div>
-      <div className="bg-white p-4 rounded-xl shadow">
-        <div className="h-[420px] rounded overflow-hidden border">
+      <div className="bg-white p-3 sm:p-4 rounded-xl shadow">
+        <div className="h-[300px] sm:h-[420px] rounded overflow-hidden border">
           <MapContainer center={center} zoom={sucursales.length?6:5} style={{height:'100%',width:'100%'}}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
             {sucursales.map(s=>(
@@ -36,9 +36,9 @@ export default function Sucursales(){
           </MapContainer>
         </div>
       </div>
-      <div className="grid md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {sucursales.map(s=>(
-          <div key={s.id} className="bg-white border rounded-xl p-4 flex justify-between">
+          <div key={s.id} className="bg-white border rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row gap-3 justify-between">
             <div>
               <div className="font-bold">{s.nombre} <span className="text-xs text-gray-500">{(s as any).provincia}</span> {!s.activa && <span className="ml-2 bg-gray-200 px-2 py-0.5 rounded text-xs">Inactiva</span>}</div>
               <div className="text-sm text-gray-600">{(s as any).direccion ?? '—'}</div>

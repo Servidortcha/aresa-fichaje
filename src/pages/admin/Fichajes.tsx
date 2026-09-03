@@ -131,21 +131,25 @@ export default function Fichajes(){
   const center:[number,number]=sucursales[0]?[sucursales[0].lat,sucursales[0].lng]:filtrados[0]?[filtrados[0].lat,filtrados[0].lng]:[-32.2426,-63.542]
   return (
     <div className="space-y-4">
-      <div className="bg-white p-4 rounded-xl shadow flex flex-wrap gap-3 items-end">
-        <h2 className="text-xl font-bold w-full">Registro de fichajes — Admin editable</h2>
-        <p className="w-full text-sm text-gray-500 -mt-2">Cada fichaje es un evento. Puedes cambiar sucursal, fecha/hora y tipo. Crear manual asignando usuario y sucursal.</p>
-        <input value={filtroEmpleado} onChange={e=>setFiltroEmpleado(e.target.value)} placeholder="Filtrar empleado" className="border rounded px-3 py-2" />
-        <select value={filtroTipo} onChange={e=>setFiltroTipo(e.target.value)} className="border rounded px-3 py-2">
-          <option value="">Todos los tipos</option><option value="entrada">Entrada</option><option value="salida">Salida</option>
-        </select>
-        <select value={filtroSucursal} onChange={e=>setFiltroSucursal(e.target.value)} className="border rounded px-3 py-2 min-w-[180px]">
-          <option value="">Todas las sucursales</option><option value="__sin__">Fuera de sucursal</option>
-          {sucursales.map(s=> <option key={s.id} value={s.id}>{s.nombre}</option>)}
-        </select>
-        <input type="date" value={filtroFecha} onChange={e=>setFiltroFecha(e.target.value)} className="border rounded px-3 py-2" />
-        <button onClick={exportExcel} className="bg-green-600 text-white px-4 py-2 rounded">Exportar Excel</button>
-        <button onClick={()=>setShowManual(v=>!v)} className="bg-red-600 text-white px-4 py-2 rounded">+ Fichaje manual</button>
-        <span className="text-sm text-gray-500">{filtrados.length} registros · {usuarios.length} usuarios</span>
+      <div className="bg-white p-3 sm:p-4 rounded-xl shadow">
+        <h2 className="text-lg sm:text-xl font-bold">Registro de fichajes — Admin editable</h2>
+        <p className="text-xs sm:text-sm text-gray-500">Cada fichaje es un evento. Puedes cambiar sucursal, fecha/hora y tipo. Crear manual asignando usuario y sucursal.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap gap-2 sm:gap-3 items-end mt-3">
+          <input value={filtroEmpleado} onChange={e=>setFiltroEmpleado(e.target.value)} placeholder="Filtrar empleado" className="border rounded px-3 py-2 w-full lg:w-auto" />
+          <select value={filtroTipo} onChange={e=>setFiltroTipo(e.target.value)} className="border rounded px-3 py-2 w-full lg:w-auto">
+            <option value="">Todos los tipos</option><option value="entrada">Entrada</option><option value="salida">Salida</option>
+          </select>
+          <select value={filtroSucursal} onChange={e=>setFiltroSucursal(e.target.value)} className="border rounded px-3 py-2 w-full lg:w-auto lg:min-w-[180px]">
+            <option value="">Todas las sucursales</option><option value="__sin__">Fuera de sucursal</option>
+            {sucursales.map(s=> <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </select>
+          <input type="date" value={filtroFecha} onChange={e=>setFiltroFecha(e.target.value)} className="border rounded px-3 py-2 w-full lg:w-auto" />
+          <div className="flex gap-2 w-full lg:w-auto">
+            <button onClick={exportExcel} className="flex-1 lg:flex-none bg-green-600 text-white px-4 py-2 rounded text-sm">Exportar Excel</button>
+            <button onClick={()=>setShowManual(v=>!v)} className="flex-1 lg:flex-none bg-ink text-paper px-4 py-2 rounded text-sm">+ Manual</button>
+          </div>
+          <span className="text-xs sm:text-sm text-gray-500 col-span-1 sm:col-span-2 lg:col-span-1">{filtrados.length} registros · {usuarios.length} usuarios</span>
+        </div>
       </div>
 
       {showManual && (
@@ -203,8 +207,8 @@ export default function Fichajes(){
         </div>
       )}
 
-      <div className="bg-white p-4 rounded-xl shadow">
-        <div className="h-[380px] rounded overflow-hidden border">
+      <div className="bg-white p-3 sm:p-4 rounded-xl shadow">
+        <div className="h-[280px] sm:h-[380px] rounded overflow-hidden border">
           <MapContainer center={center} zoom={sucursales.length?6:5} style={{height:'100%',width:'100%'}}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
             {sucursales.map(s=> <Circle key={s.id} center={[s.lat,s.lng]} radius={s.radio_m} pathOptions={{ color:'#9ca3af', fillOpacity:0.08 }}><Popup>{s.nombre} · {s.radio_m} m</Popup></Circle>)}
@@ -214,8 +218,8 @@ export default function Fichajes(){
       </div>
 
       <div className="bg-white rounded-xl shadow overflow-hidden">
-        <div className="overflow-auto max-h-[700px]">
-          <table className="w-full text-sm">
+        <div className="overflow-auto max-h-[700px] -mx-3 sm:mx-0">
+          <table className="w-full text-xs sm:text-sm min-w-[700px]">
             <thead className="bg-gray-50 sticky top-0"><tr><th className="p-2 text-left">Fecha</th><th className="p-2 text-left">Empleado</th><th className="p-2">Tipo</th><th className="p-2 text-left">Sucursal</th><th className="p-2">Ubicación</th><th className="p-2">Foto</th><th className="p-2">Acciones</th></tr></thead>
             <tbody>
               {filtrados.map(f=>{
