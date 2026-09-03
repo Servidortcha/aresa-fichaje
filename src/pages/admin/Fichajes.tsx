@@ -28,6 +28,7 @@ export default function Fichajes(){
   const [showManual, setShowManual] = useState(false)
   const [manual, setManual] = useState({ user_id:'', tipo:'entrada' as Fichaje['tipo'], sucursal_id:'', fecha:'', hora:'' })
   const [msg, setMsg] = useState<string|null>(null)
+  const [exportMes, setExportMes] = useState(new Date().toISOString().slice(0,7))
 
   const load = async()=>{
     const { data } = await supabase.from('fichajes').select('*, profiles(nombre,email)').order('created_at',{ascending:false}).limit(400)
@@ -89,6 +90,232 @@ export default function Fichajes(){
     const wsAll=XLSX.utils.json_to_sheet(allRows)
     XLSX.utils.book_append_sheet(wb, wsAll, 'Todos')
     XLSX.writeFile(wb, `Aresa_Fichajes_por_Sucursal_${new Date().toISOString().slice(0,10)}.xlsx`)
+  }
+
+  const exportSimonetti = async()=>{
+    try{
+      const [y,m]=exportMes.split('-').map(Number)
+      const daysInMonth=new Date(y,m,0).getDate()
+      const mesNombres=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
+      const diaSem=['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','SÁBADO']
+      const mesStr=mesNombres[m-1]
+      // traer fichajes del mes
+      const start=`${exportMes}-01T00:00:00`
+      const end=new Date(y,m,1).toISOString().slice(0,10)+'T00:00:00'
+      const { data: fichMes } = await supabase.from('fichajes').select('user_id,tipo,created_at,profiles(nombre)').gte('created_at', start).lt('created_at', end).order('created_at', {ascending:true}).limit(5000)
+      const { data: profs } = await supabase.from('profiles').select('id,nombre,email').order('nombre')
+      const listaProfs = (profs as any) ?? []
+      // cargar plantilla
+      const res=await fetch('/template-fichajes.xlsx')
+      const buf=await res.arrayBuffer()
+      const wb=XLSX.read(buf, {type:'array', cellStyles:true})
+      const sheetName=wb.SheetNames[0]
+      const ws=wb.Sheets[sheetName]
+      // mapear columnas por día a partir de plantilla (misma estructura)
+      // construir mapa día -> { entradaCols:[], salidaCols:[], totalCol, diasCol, ausenciaCol }
+      // parsear fila 1 y 2
+      const dayCols: Record<number, { entrada:number[], salida:number[], total:number|null, dias:number|null, ausencia:number|null }> = {}
+      // necesitamos leer merges y celdas
+      const merges = (ws['!merges'] as any[]) ?? []
+      // para cada col, encontrar su día header
+      const colToDay: Record<number,string> = {}
+      for(const mr of merges){
+        const c = wb.Sheets[sheetName][XLSX.utils.encode_cell({r:mr.s.r, c:mr.s.c})]
+        const v = c?.v
+        if(v && typeof v==='string' && v.match(/^\d+-/)){
+          for(let cIdx=mr.s.c; cIdx<=mr.e.c; cIdx++) colToDay[cIdx+1]=v
+        }
+      }
+      // fallback: por si no hay merges para todos, leer celdas directas
+      for(let c=1;c<=227;c++){
+        const addr=XLSX.utils.encode_cell({r:0,c:c-1})
+        const cell=ws[addr]
+        if(cell?.v && typeof cell.v==='string' && cell.v.match(/^\d+-/)) colToDay[c]=cell.v
+      }
+      // construir dayCols por día num
+      for(let col=1; col<=227; col++){
+        const dayStr = colToDay[col]
+        if(!dayStr) continue
+        const dayNum = parseInt(dayStr.split('-')[0])
+        if(!dayNum || dayNum>31) continue
+        if(!dayCols[dayNum]) dayCols[dayNum]={ entrada:[], salida:[], total:null, dias:null, ausencia:null }
+        const subAddr=XLSX.utils.encode_cell({r:1,c:col-1})
+        const sub=ws[subAddr]?.v
+        if(sub==='Entrada') dayCols[dayNum].entrada.push(col)
+        else if(sub==='Salida') dayCols[dayNum].salida.push(col)
+        else if(sub==='Total Hs.') dayCols[dayNum].total=col
+        else if(sub==='DÍAS TRABAJADOS' || sub==='D\xcdAS TRABAJADOS') dayCols[dayNum].dias=col
+        else if(sub==='Ausencia') dayCols[dayNum].ausencia=col
+      }
+      // actualizar headers de días para el mes exportado
+      for(let d=1; d<=31; d++){
+        const dc = dayCols[d]
+        if(!dc) continue
+        const dt=new Date(y,m-1,d)
+        const wd = diaSem[dt.getDay()]
+        const newHeader = d<=daysInMonth ? `${d}-${mesStr} ${wd}` : ''
+        // actualizar todas las celdas que pertenecen a ese día (solo la primera del merge)
+        // buscar merges de ese día
+        for(const mr of merges){
+          const addr=XLSX.utils.encode_cell({r:0,c:mr.s.c})
+          const cell=ws[addr]
+          if(cell && cell.v && String(cell.v).startsWith(`${d}-`)){
+            cell.v = newHeader
+            cell.w = newHeader
+            cell.h = newHeader
+            // actualizar t
+            if(newHeader==='') { cell.v=''; cell.w=''; cell.h='' }
+          }
+        }
+        // si el día no existe en mes (31 en feb), limpiar
+        if(d>daysInMonth){
+          // limpiar cam[pos] no necesario, se dejará vacío
+        }
+      }
+      // renombrar hoja
+      const newName = `${mesStr}-${y.toString().slice(-2)}`
+      wb.SheetNames[0]=newName
+      wb.Sheets[newName]=ws
+      delete wb.Sheets[sheetName]
+
+      // agrupar fichajes por usuario y día
+      const fichByUserDay = new Map<string, Map<number, {entrada:string[], salida:string[]}>>()
+      for(const f of (fichMes as any) ?? []){
+        const d=new Date(f.created_at)
+        if(d.getMonth()+1!==m || d.getFullYear()!==y) continue
+        const day=d.getDate()
+        const key=f.user_id
+        if(!fichByUserDay.has(key)) fichByUserDay.set(key, new Map())
+        const mDay=fichByUserDay.get(key)!
+        if(!mDay.has(day)) mDay.set(day, {entrada:[], salida:[]})
+        const entry=mDay.get(day)!
+        const hh=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')
+        if(f.tipo==='entrada') entry.entrada.push(hh)
+        else if(f.tipo==='salida') entry.salida.push(hh)
+      }
+
+      // limpiar filas de datos existentes (desde fila 3)
+      const range = XLSX.utils.decode_range(ws['!ref']!)
+      // borrar filas 3..34 (hasta 32 empleados + totales) - mantendremos 32 filas
+      for(let r=2; r<35; r++){
+        for(let c=0;c<=range.e.c;c++){
+          const addr=XLSX.utils.encode_cell({r,c})
+          if(ws[addr] && r>=2){
+            // mantener fórmulas? solo limpiar valores de datos, pero dejamos legajo/nombre vacíos para rellenar
+            if(c>=4) { // desde columna E (ausencia)
+              delete ws[addr]
+            }
+          }
+        }
+      }
+
+      // llenar filas por usuario
+      let rowIdx=2 // 0-indexed, fila 3
+      for(const prof of listaProfs){
+        if(rowIdx>=34) break
+        const legajo = prof.id.slice(0,8).toUpperCase()
+        // columnas A-D: LEGAJO, APELLIDO Y NOMBRE, DESTINO, RAZON
+        const addrA=XLSX.utils.encode_cell({r:rowIdx,c:0}); ws[addrA]={t:'s', v:legajo}
+        const addrB=XLSX.utils.encode_cell({r:rowIdx,c:1}); ws[addrB]={t:'s', v:prof.nombre}
+        const addrC=XLSX.utils.encode_cell({r:rowIdx,c:2}); ws[addrC]={t:'s', v:''}
+        const addrD=XLSX.utils.encode_cell({r:rowIdx,c:3}); ws[addrD]={t:'s', v:'ARESA'}
+
+        const userDays = fichByUserDay.get(prof.id)
+        for(let d=1; d<=daysInMonth; d++){
+          const dc=dayCols[d]
+          if(!dc) continue
+          const dayData = userDays?.get(d)
+          if(!dayData){
+            // ausencia: marcar ausente? dejar vacío y poner Ausencia = 'A' ?
+            if(dc.ausencia){
+              const aAddr=XLSX.utils.encode_cell({r:rowIdx,c:dc.ausencia-1})
+              ws[aAddr]={t:'s', v:''}
+            }
+            continue
+          }
+          // llenar Entrada/Salida en orden: intercalar entrada/salida
+          const allTimes: string[] = []
+          // combinar en pares: entrada1, salida1, entrada2, salida2...
+          const maxPairs = Math.max(dayData.entrada.length, dayData.salida.length)
+          for(let i=0;i<maxPairs;i++){
+            if(dayData.entrada[i]) allTimes.push(dayData.entrada[i])
+            if(dayData.salida[i]) allTimes.push(dayData.salida[i])
+          }
+          const orderedCols: number[] = []
+          const dayColIndices = (Object.values(dc).flat().filter(Boolean) as number[]).sort((a,b)=>a-b)
+          // pero filtramos solo Entrada/Salida ya ordenadas por col
+          const entradaSet=new Set(dc.entrada), salidaSet=new Set(dc.salida)
+          for(const col of dayColIndices){
+            if(entradaSet.has(col) || salidaSet.has(col)) orderedCols.push(col)
+          }
+          for(let i=0;i<Math.min(allTimes.length, orderedCols.length); i++){
+            const col=orderedCols[i]
+            const addr=XLSX.utils.encode_cell({r:rowIdx,c:col-1})
+            // guardar como string h:mm, Excel lo mostrará
+            ws[addr]={t:'s', v:allTimes[i], z:'h:mm'}
+          }
+          // calcular Total Hs. del día si hay par completo
+          if(dc.total && dayData.entrada.length && dayData.salida.length){
+            let totalMin=0
+            const pairs=Math.min(dayData.entrada.length, dayData.salida.length)
+            for(let i=0;i<pairs;i++){
+              const [h1,m1]=dayData.entrada[i].split(':').map(Number)
+              const [h2,m2]=dayData.salida[i].split(':').map(Number)
+              totalMin+=(h2*60+m2)-(h1*60+m1)
+            }
+            if(totalMin>0){
+              const totalAddr=XLSX.utils.encode_cell({r:rowIdx,c:dc.total-1})
+              const excelVal = totalMin / (24*60)
+              ws[totalAddr]={t:'n', v:excelVal, z:'[h]:mm'}
+            }
+          }
+          if(dc.dias){
+            const diasAddr=XLSX.utils.encode_cell({r:rowIdx,c:dc.dias-1})
+            const hasFichaje = dayData.entrada.length>0 || dayData.salida.length>0
+            ws[diasAddr]={t:'n', v: hasFichaje?1:0}
+          }
+          if(dc.ausencia){
+            const ausAddr=XLSX.utils.encode_cell({r:rowIdx,c:dc.ausencia-1})
+            const hasFichaje = dayData.entrada.length>0 || dayData.salida.length>0
+            ws[ausAddr]={t:'s', v: hasFichaje?'':'A'}
+          }
+        }
+        // HORAS TOTALES y DIAS al final (cols 226,227)
+        // calcular totales del mes para este usuario
+        let mesTotalMin=0, diasTrab=0
+        for(let d=1; d<=daysInMonth; d++){
+          const dc=dayCols[d]
+          if(dc?.total){
+            const addr=XLSX.utils.encode_cell({r:rowIdx,c:dc.total-1})
+            const cell=ws[addr]
+            if(cell?.v && typeof cell.v==='number'){
+              mesTotalMin+= cell.v * 24*60
+            }
+          }
+          if(dc?.dias){
+            const addr=XLSX.utils.encode_cell({r:rowIdx,c:dc.dias-1})
+            const cell=ws[addr]
+            if(cell?.v===1) diasTrab++
+          }
+        }
+        const horasTotCol=226, diasTotCol=227
+        const htAddr=XLSX.utils.encode_cell({r:rowIdx,c:horasTotCol-1})
+        if(mesTotalMin>0) ws[htAddr]={t:'n', v: mesTotalMin/(24*60), z:'[h]:mm'}
+        const dtAddr=XLSX.utils.encode_cell({r:rowIdx,c:diasTotCol-1})
+        ws[dtAddr]={t:'n', v:diasTrab}
+
+        rowIdx++
+      }
+
+      // actualizar !ref si hace falta
+      ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:34, c:226}})
+
+      XLSX.writeFile(wb, `Simonetti_${mesStr}${y}_Fichajes_${exportMes}.xlsx`)
+      setMsg(`Exportado formato Simonetti ${mesStr} ${y} ✓`)
+    }catch(e:any){
+      console.error(e)
+      setMsg('Error export Simonetti: '+e.message)
+    }
   }
 
   const openEdit = (f:Fichaje)=>{
@@ -175,6 +402,10 @@ export default function Fichajes(){
             <button onClick={exportExcel} className="flex-1 lg:flex-none bg-green-600 text-white px-4 py-2 rounded text-sm">Exportar (filtro)</button>
             <button onClick={exportPorSucursal} className="flex-1 lg:flex-none bg-amber text-white px-4 py-2 rounded text-sm">Por sucursal</button>
             <button onClick={()=>setShowManual(v=>!v)} className="flex-1 lg:flex-none bg-ink text-paper px-4 py-2 rounded text-sm">+ Manual</button>
+          </div>
+          <div className="flex gap-2 w-full lg:w-auto items-center">
+            <input type="month" value={exportMes} onChange={e=>setExportMes(e.target.value)} className="border rounded px-2 py-1 text-sm" />
+            <button onClick={exportSimonetti} className="bg-[#163A5F] text-white px-3 py-2 rounded text-sm">Formato Simonetti</button>
           </div>
           <span className="text-xs sm:text-sm text-gray-500 col-span-1 sm:col-span-2 lg:col-span-1">{filtrados.length} registros · {usuarios.length} usuarios</span>
         </div>
