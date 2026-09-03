@@ -4,6 +4,11 @@ import Layout from './components/Layout'
 import Login from './pages/Login'
 import Empleado from './pages/Empleado'
 import Admin from './pages/Admin'
+import AdminLayout from './pages/admin/AdminLayout'
+import Dashboard from './pages/admin/Dashboard'
+import Sucursales from './pages/admin/Sucursales'
+import SucursalForm from './pages/admin/SucursalForm'
+import Fichajes from './pages/admin/Fichajes'
 
 function Protected({ children, roles }: { children: React.ReactNode; roles?: ('admin' | 'empleado')[] }) {
   const { userId, profile, loading } = useAuth()
@@ -31,7 +36,16 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Layout><HomeRedirect /></Layout>} />
           <Route path="/fichar" element={<Layout><Protected roles={['empleado', 'admin']}><Empleado /></Protected></Layout>} />
-          <Route path="/admin" element={<Layout><Protected roles={['admin']}><Admin /></Protected></Layout>} />
+          {/* Admin con páginas separadas - src/pages/admin/AdminLayout.tsx:1 */}
+          <Route path="/admin" element={<Layout><Protected roles={['admin']}><AdminLayout /></Protected></Layout>}>
+            <Route index element={<Dashboard />} />
+            <Route path="sucursales" element={<Sucursales />} />
+            <Route path="sucursales/nueva" element={<SucursalForm />} />
+            <Route path="sucursales/:id" element={<SucursalForm />} />
+            <Route path="fichajes" element={<Fichajes />} />
+          </Route>
+          {/* legacy single page */}
+          <Route path="/admin-old" element={<Layout><Protected roles={['admin']}><Admin /></Protected></Layout>} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
