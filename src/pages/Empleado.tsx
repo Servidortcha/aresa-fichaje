@@ -31,6 +31,7 @@ function calcularJornada(fichajesAsc: any[]) {
 }
 
 function formatHoras(ms: number) {
+  if (ms < 0) ms = 0
   const totalMin = Math.floor(ms / 60000)
   const h = Math.floor(totalMin / 60)
   const m = totalMin % 60
@@ -173,8 +174,9 @@ export default function Empleado() {
 
   const jornada = calcularJornada(historialHoy)
   const elapsedMs = (() => {
-    if (jornada.trabajando && jornada.openStart) return jornada.totalMs + (now - jornada.openStart)
-    return jornada.totalMs
+    let ms = jornada.totalMs
+    if (jornada.trabajando && jornada.openStart) ms += now - jornada.openStart
+    return Math.max(0, ms)
   })()
 
   const iniciarFlujo = (tipo: Tipo) => {
@@ -255,7 +257,7 @@ export default function Empleado() {
               <div className="my-4 p-4 bg-green-50 border border-green-200 rounded-xl">
                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded-full text-sm font-bold animate-pulse">● Trabajando</div>
                 <div className="text-5xl font-mono font-bold mt-3">{formatHoras(elapsedMs)}</div>
-                <div className="text-sm text-gray-600">Horas trabajadas hoy (descontando pausas)</div>
+                <div className="text-sm text-gray-600">Horas trabajadas hoy</div>
                 {jornada.inicioMs && <div className="text-xs text-gray-500">Inicio: {new Date(jornada.inicioMs).toLocaleTimeString()}</div>}
               </div>
               <button onClick={() => iniciarFlujo('salida')} className="w-full bg-red-600 text-white py-4 rounded-xl font-bold">⏹ Finalizar jornada</button>
