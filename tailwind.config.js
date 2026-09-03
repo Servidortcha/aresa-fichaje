@@ -8,9 +8,9 @@ export default {
         paper: "#F0F2F8",
         card: "#FFFFFF",
         line: "#CBD5E1",
-        amber: "#F4791E",
-        green: "#4B7355",
-        red: "#C7522A",
+        amber: { 50:"#FFF7ED", 100:"#FFEDD5", 500:"#F4791E", 600:"#E06A15" },
+        green: { 50:"#E4F3EA", 100:"#C8E6D5", 600:"#4B7355", 700:"#365A3E" },
+        red: { 50:"#FDECEA", 100:"#FAD5D0", 600:"#C7522A", 700:"#A84522" },
         steel: "#2E6F9E",
         accent: "#3A8DDE",
         aresa: {
