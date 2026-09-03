@@ -183,9 +183,11 @@ export default function Empleado() {
     setFicharTipo(tipo)
     setFotoPreview(null)
     setMsg(null)
+    setCoords(null)
+    setDireccion(null)
     setView('fichar')
-    // auto iniciar cámara y GPS al entrar
-    setTimeout(() => { startCamera(); getLocation() }, 300)
+    // GPS automático, cámara manual con botón
+    setTimeout(() => { getLocation() }, 300)
   }
 
   const fichar = async () => {
@@ -319,19 +321,24 @@ export default function Empleado() {
           {ficharTipo==='entrada' ? 'Iniciar jornada' : ficharTipo==='salida' ? 'Finalizar jornada' : ficharTipo==='pausa_inicio' ? 'Pausar' : 'Reanudar'} — Autenticación
         </h2>
       </div>
-      <p className="text-sm text-center text-gray-500">Se tomará foto con cámara frontal y ubicación GPS automáticamente</p>
-
-      <div className="flex gap-2">
-        <button onClick={startCamera} className="flex-1 bg-gray-900 text-white py-2 rounded text-sm">{stream ? 'Cámara activa ✓' : 'Reactivar cámara'}</button>
-        <button onClick={getLocation} disabled={loadingLoc} className="flex-1 bg-blue-600 text-white py-2 rounded text-sm disabled:opacity-50">{loadingLoc ? 'GPS...' : coords ? 'GPS ✓ Actualizar' : 'Obtener GPS'}</button>
-      </div>
+      <p className="text-sm text-center text-gray-500">Abre la cámara para tomar la foto — el GPS se obtiene automáticamente y el registro queda al instante</p>
 
       <div className="relative bg-black rounded overflow-hidden aspect-[4/3] grid place-items-center">
-        <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-        {!stream && <span className="absolute text-white text-sm">Activando cámara...</span>}
+        <video ref={videoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${!stream ? 'hidden' : ''}`} />
+        {!stream && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black">
+            <div className="text-white text-sm">Cámara apagada</div>
+            <button onClick={startCamera} className="px-6 py-3 bg-white text-black rounded-full font-bold shadow">📷 Abrir cámara</button>
+            <span className="text-white/60 text-xs">Se solicitará permiso</span>
+          </div>
+        )}
+        {stream && <button onClick={stopCamera} className="absolute top-2 right-2 text-xs bg-black/60 text-white px-2 py-1 rounded">Cerrar</button>}
       </div>
       <canvas ref={canvasRef} className="hidden" />
-      <button onClick={capturarFoto} disabled={!stream || enviando} className="w-full bg-amber-500 text-white py-3 rounded font-bold disabled:opacity-50">{enviando ? '⏳ Registrando...' : '📸 Capturar foto y registrar automáticamente'}</button>
+      <button onClick={capturarFoto} disabled={!stream || !coords || enviando} className="w-full bg-amber-500 text-white py-3 rounded font-bold disabled:opacity-50 disabled:bg-gray-300 disabled:text-gray-500">
+        {enviando ? '⏳ Registrando...' : !stream ? 'Abre la cámara para continuar' : !coords ? 'Esperando GPS...' : '📸 Capturar foto y registrar automáticamente'}
+      </button>
+      {!coords && stream && <p className="text-xs text-center text-amber-600">{loadingLoc ? 'Obteniendo ubicación...' : 'GPS no disponible — '} <button onClick={getLocation} className="underline">Reintentar GPS</button></p>}
       {fotoPreview && !enviando && <div><img src={fotoPreview} className="w-full rounded border" /><p className="text-xs text-blue-600 text-center">Procesando...</p></div>}
 
 
