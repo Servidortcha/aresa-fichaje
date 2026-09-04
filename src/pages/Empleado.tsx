@@ -262,7 +262,7 @@ export default function Empleado() {
                 <p className="font-medium">Aún no iniciaste tu jornada</p>
                 <p className="text-sm text-gray-500">Pulsa para autenticar con cámara y ubicación</p>
               </div>
-              <button onClick={() => iniciarFlujo('entrada')} className="w-full bg-green-600 hover:bg-green-700 text-white text-xl font-bold py-5 rounded-xl shadow">
+              <button onClick={() => iniciarFlujo('entrada')} className="w-full bg-ink hover:bg-[#1A2B4A] text-white text-xl font-bold py-5 rounded-xl shadow">
                 ▶ Iniciar jornada
               </button>
               <p className="text-xs text-gray-400 mt-2">Se tomará foto y GPS automáticamente</p>

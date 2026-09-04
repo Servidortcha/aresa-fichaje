@@ -30,7 +30,8 @@ export default function Solicitudes(){
 
   const aprobar = async(s:any)=>{
     const suc = sucursales.find(x=>x.id===s.sucursal_id)
-    const newDate = new Date(`${s.fecha_solicitada}T${s.hora_solicitada}:00`)
+    const hora = String(s.hora_solicitada).slice(0,5)
+    const newDate = new Date(`${s.fecha_solicitada}T${hora}:00`)
     try{
       if(s.tipo==='modificacion' && s.fichaje_id){
         // recalcular coords si hay sucursal
