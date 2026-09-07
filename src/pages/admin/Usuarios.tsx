@@ -13,6 +13,9 @@ export default function Usuarios(){
   const [msg, setMsg] = useState<string|null>(null)
   const [loading, setLoading] = useState(false)
   const [lastCreated, setLastCreated] = useState<{ email:string, password:string, nombre:string } | null>(null)
+  const [pdfModal, setPdfModal] = useState<{ open:boolean, user:any | null }>({ open:false, user:null })
+  const [pdfPass, setPdfPass] = useState('')
+  const [showPdfPass, setShowPdfPass] = useState(false)
 
   const load = async()=>{
     const { data } = await supabase.from('profiles').select('id,nombre,email,rol,created_at').order('created_at', {ascending:false}).limit(100)
@@ -105,11 +108,7 @@ export default function Usuarios(){
                   </td>
                   <td className="p-2 flex gap-1 justify-center flex-wrap">
                     <button onClick={()=>navigator.clipboard.writeText(u.email)} className="px-2 py-1 border rounded text-xs">Copiar email</button>
-                    <button onClick={()=>{
-                      const pwd = prompt(`Contraseña para ${u.nombre} (${u.email})\nDeja vacío para PDF sin contraseña\nSi es usuario existente y no la recuerdas, escribe una NUEVA y luego actualizala en Supabase Dashboard > Auth > Users > ${u.email} > Reset password`)
-                      if(pwd===null) return
-                      generarPdfUsuario({ nombre:u.nombre, email:u.email, rol:u.rol, id:u.id, created_at:u.created_at, password: pwd.trim() || undefined })
-                    }} className="px-2 py-1 bg-ink text-paper rounded text-xs">PDF entrega</button>
+                    <button onClick={()=>{ setPdfModal({ open:true, user:u }); setPdfPass(''); setShowPdfPass(false) }} className="px-2 py-1 bg-ink text-paper rounded text-xs">PDF entrega</button>
                     <button onClick={()=>borrar(u.id)} className="px-2 py-1 bg-red-50 text-red-700 border border-red-200 rounded text-xs">Borrar perfil</button>
                   </td>
                 </tr>
@@ -118,6 +117,42 @@ export default function Usuarios(){
           </table>
         </div>
       </div>
+
+      {pdfModal.open && pdfModal.user && (
+        <div className="fixed inset-0 bg-black/60 grid place-items-center z-[9999] p-4" onClick={()=>setPdfModal({ open:false, user:null })}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4 shadow-xl" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-display font-bold text-lg text-ink">PDF Entrega — {pdfModal.user.nombre}</h3>
+                <p className="text-xs text-gray-500">{pdfModal.user.email} · {pdfModal.user.rol} · legajo {pdfModal.user.id.slice(0,8)}</p>
+              </div>
+              <button onClick={()=>setPdfModal({ open:false, user:null })} className="w-8 h-8 grid place-items-center rounded-full border hover:bg-gray-50">✕</button>
+            </div>
+
+            <div className="bg-paper border border-line rounded-xl p-4 space-y-3">
+              <label className="block text-sm font-medium text-ink">Contraseña a incluir en el PDF</label>
+              <div className="relative">
+                <input value={pdfPass} onChange={e=>setPdfPass(e.target.value)} type={showPdfPass ? 'text' : 'password'} placeholder="Deja vacío para PDF sin contraseña" className="w-full border rounded-xl px-3 py-3 pr-12" />
+                <button type="button" onClick={()=>setShowPdfPass(v=>!v)} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 grid place-items-center rounded-full hover:bg-gray-100 text-sm">{showPdfPass ? '🙈' : '👁'}</button>
+              </div>
+              <p className="text-xs text-gray-600">Si es un usuario existente y no la recordás, escribí una <b>NUEVA</b> (ej: <code className="bg-white border px-1 rounded">Aresa2026!</code>) y luego actualizala en <code className="bg-white border px-1 rounded">Supabase Dashboard &gt; Auth &gt; Users &gt; {pdfModal.user.email} &gt; Reset password</code>. El PDF la mostrará con recuadro verde.</p>
+              <div className="flex gap-2 text-xs">
+                <span className="px-2 py-1 bg-green-600 text-white rounded-full">Con contraseña: visible</span>
+                <span className="px-2 py-1 bg-gray-200 text-gray-700 rounded-full">Vacío: instrucciones de recupero</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={async()=>{
+                await generarPdfUsuario({ nombre:pdfModal.user.nombre, email:pdfModal.user.email, rol:pdfModal.user.rol, id:pdfModal.user.id, created_at:pdfModal.user.created_at, password: pdfPass.trim() || undefined })
+                setPdfModal({ open:false, user:null })
+              }} className="flex-1 bg-ink text-paper py-3 rounded-xl font-bold shadow hover:bg-black">Generar PDF</button>
+              <button onClick={()=>setPdfModal({ open:false, user:null })} className="flex-1 border border-line py-3 rounded-xl font-medium">Cancelar</button>
+            </div>
+            <p className="text-xs text-center text-gray-400">Se descarga como <code className="bg-gray-100 px-1 rounded">Aresa_{pdfModal.user.nombre.replace(/\s+/g,'_')}.pdf</code></p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
