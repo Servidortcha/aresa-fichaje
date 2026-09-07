@@ -28,10 +28,10 @@ export async function generarPdfUsuario(u: UsuarioPdf) {
   doc.text('ARESA', 14, 16)
   doc.setFontSize(11)
   doc.setFont('helvetica', 'normal')
-  doc.text('Fichaje  •  Tu jornada, en un toque', 14, 22)
+  doc.text('Fichaje - Tu jornada, en un toque', 14, 22)
   doc.setFontSize(8)
   doc.setTextColor(200, 220, 235)
-  doc.text('Foto y ubicación verificadas  •  Sistema seguro', 14, 28)
+  doc.text('Foto y ubicacion verificadas - Sistema seguro', 14, 28)
 
   // Badge fecha
   doc.setFillColor(255, 255, 255)
@@ -60,7 +60,7 @@ export async function generarPdfUsuario(u: UsuarioPdf) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   doc.setTextColor(100, 116, 139)
-  doc.text(`LEGAJO ${u.id.slice(0, 8).toUpperCase()}  •  ${u.rol.toUpperCase()}  •  Alta ${new Date(u.created_at).toLocaleDateString('es-AR')}`, 18, y + 15)
+  doc.text(`LEGAJO ${u.id.slice(0, 8).toUpperCase()}  -  ${u.rol.toUpperCase()}  -  Alta ${new Date(u.created_at).toLocaleDateString('es-AR')}`, 18, y + 15)
 
   // Datos en 2 columnas
   doc.setFontSize(8)
@@ -79,19 +79,23 @@ export async function generarPdfUsuario(u: UsuarioPdf) {
   doc.text('Contraseña:', W / 2 + 4, y + 24)
   doc.setFont('helvetica', 'normal')
   if (u.password) {
-    doc.setFontSize(10)
+    doc.setFontSize(11)
     doc.setFont('courier', 'bold')
+    doc.setTextColor(20, 80, 20)
     doc.text(u.password, W / 2 + 4, y + 29)
+    // recuadro para destacar contraseña
+    doc.setDrawColor(20, 80, 20)
+    doc.rect(W / 2 + 3, y + 24.5, doc.getTextWidth(u.password) + 4, 7)
     doc.setFontSize(6)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(180, 20, 20)
-    doc.text('⚠ Cambiar en primer acceso si fue generada por admin', W / 2 + 4, y + 34)
+    doc.text('Cambiar en primer acceso si fue generada por admin', W / 2 + 4, y + 34)
     doc.setTextColor(22, 58, 95)
   } else {
     doc.setFontSize(7)
     doc.setTextColor(100, 116, 139)
     doc.text('No se muestra por seguridad.', W / 2 + 4, y + 29)
-    doc.text('Usar la asignada o Recuperar contraseña.', W / 2 + 4, y + 33)
+    doc.text('Usar la asignada o Recuperar contrasena.', W / 2 + 4, y + 33)
   }
 
   // Badge rol
@@ -117,11 +121,11 @@ export async function generarPdfUsuario(u: UsuarioPdf) {
   doc.setFontSize(7.5)
   doc.setTextColor(50, 65, 80)
   const pasos = [
-    '1. Entrá a:  https://aresa-fichaje-nine.vercel.app  (guardalo como acceso directo / PWA)',
-    '2. Tocá "Entrar"  →  escribí tu Email y Contraseña  →  tildá "Recordar cuenta"',
-    '3. Otorgá permisos de Cámara y Ubicación (obligatorios para fichar).',
-    '4. En "Fichar"  →  Abrir cámara  →  Capturar foto  →  se registra con GPS y geocerca.',
-    '5. Revisá tus horas en "Mis fichajes". Si hay error, usa "Solicitar corrección".',
+    '1. Entra a:  https://aresa-fichaje-nine.vercel.app  (guardalo como acceso directo / PWA)',
+    '2. Toca "Entrar"  ->  escribe tu Email y Contrasena  ->  tilda "Recordar cuenta"',
+    '3. Otorga permisos de Camara y Ubicacion (obligatorios para fichar).',
+    '4. En "Fichar"  ->  Abrir camara  ->  Capturar foto  ->  se registra con GPS y geocerca.',
+    '5. Revisa tus horas en "Mis fichajes". Si hay error, usa "Solicitar correccion".',
   ]
   let py = y + 16
   pasos.forEach(p => { doc.text(p, 18, py); py += 6 })
@@ -142,13 +146,13 @@ export async function generarPdfUsuario(u: UsuarioPdf) {
   doc.textWithLink('https://aresa-fichaje-nine.vercel.app', 18, y + 14, { url: 'https://aresa-fichaje-nine.vercel.app' })
   doc.setFontSize(6)
   doc.setTextColor(100, 116, 139)
-  doc.text('Escaneá o tocá el link. Instalá como App: en Chrome  →  menú  →  "Instalar app" / "Agregar a pantalla principal".', 18, y + 20)
+  doc.text('Escanea o toca el link. Instala como App: en Chrome  ->  menu  ->  "Instalar app" / "Agregar a pantalla principal".', 18, y + 20)
 
   // Footer seguridad
   doc.setFontSize(6)
   doc.setTextColor(120, 130, 145)
-  doc.text('🔒 Tus datos (foto/ubicación) se usan solo para verificar jornada. No compartas tu contraseña. Sesión 30 días si tildaste Recordar.', 14, H - 14)
-  doc.text(`ID ${u.id}  •  Generado ${new Date().toISOString().slice(0, 10)} por Admin Aresa Fichaje  •  Documento privado`, 14, H - 10)
+  doc.text('Tus datos (foto/ubicacion) se usan solo para verificar jornada. No compartas tu contrasena. Sesion 30 dias si tildaste Recordar.', 14, H - 14)
+  doc.text(`ID ${u.id}  -  Generado ${new Date().toISOString().slice(0, 10)} por Admin Aresa Fichaje  -  Documento privado`, 14, H - 10)
 
   // Línea corte
   doc.setDrawColor(180, 190, 200)

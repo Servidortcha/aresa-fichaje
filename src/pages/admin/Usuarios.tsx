@@ -105,7 +105,11 @@ export default function Usuarios(){
                   </td>
                   <td className="p-2 flex gap-1 justify-center flex-wrap">
                     <button onClick={()=>navigator.clipboard.writeText(u.email)} className="px-2 py-1 border rounded text-xs">Copiar email</button>
-                    <button onClick={()=>generarPdfUsuario({ nombre:u.nombre, email:u.email, rol:u.rol, id:u.id, created_at:u.created_at })} className="px-2 py-1 bg-ink text-paper rounded text-xs">PDF entrega</button>
+                    <button onClick={()=>{
+                      const pwd = prompt(`Contraseña para ${u.nombre} (${u.email})\nDeja vacío para PDF sin contraseña\nSi es usuario existente y no la recuerdas, escribe una NUEVA y luego actualizala en Supabase Dashboard > Auth > Users > ${u.email} > Reset password`)
+                      if(pwd===null) return
+                      generarPdfUsuario({ nombre:u.nombre, email:u.email, rol:u.rol, id:u.id, created_at:u.created_at, password: pwd.trim() || undefined })
+                    }} className="px-2 py-1 bg-ink text-paper rounded text-xs">PDF entrega</button>
                     <button onClick={()=>borrar(u.id)} className="px-2 py-1 bg-red-50 text-red-700 border border-red-200 rounded text-xs">Borrar perfil</button>
                   </td>
                 </tr>
