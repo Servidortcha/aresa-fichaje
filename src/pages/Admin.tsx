@@ -69,30 +69,25 @@ export default function Admin() {
   })
 
   const exportExcel = async () => {
-    const XLSX = await import('xlsx')
-    // sanitización anti ReDoS / prototype pollution (xlsx vuln): limitar filas y escapar fórmulas
-    const safe = (v:any) => typeof v==='string' && v.startsWith('=') ? `'${v}` : v
-    const rows = filtrados.slice(0,5000).map(f => {
+    const { exportFichajesSimple } = await import('../lib/excelExport')
+    const rows = filtrados.map(f => {
       const suc = f.geocerca_id ? sucMap.get(f.geocerca_id) : null
       return {
         Fecha: new Date(f.created_at).toLocaleString(),
-        Empleado: safe(f.profiles?.nombre),
-        Email: safe(f.profiles?.email),
+        Empleado: f.profiles?.nombre,
+        Email: f.profiles?.email,
         Tipo: f.tipo,
-        Sucursal: safe(suc?.nombre ?? (f.geocerca_id ? 'ID:'+f.geocerca_id : 'Fuera de sucursal')),
-        Provincia: safe((suc as any)?.provincia ?? ''),
+        Sucursal: suc?.nombre ?? (f.geocerca_id ? 'ID:'+f.geocerca_id : 'Fuera de sucursal'),
+        Provincia: (suc as any)?.provincia ?? '',
         Lat: f.lat,
         Lng: f.lng,
-        Direccion: safe(f.direccion),
+        Direccion: f.direccion,
         DentroSucursal: f.dentro_geocerca ? 'SI' : 'NO',
         Distancia_m: f.distancia_m,
         Foto: f.foto_url,
       }
     })
-    const ws = XLSX.utils.json_to_sheet(rows)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Fichajes')
-    XLSX.writeFile(wb, `Aresa_Fichajes_${new Date().toISOString().slice(0,10)}.xlsx`)
+    await exportFichajesSimple(rows, `Aresa_Fichajes_${new Date().toISOString().slice(0,10)}.xlsx`)
   }
 
   const guardarSucursal = async () => {

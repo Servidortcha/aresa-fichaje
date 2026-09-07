@@ -1,9 +1,5 @@
-// Helper XLSX seguro - P1 mitigación vuln GHSA-4r6h-8v6p-xvw6 / GHSA-5pgg-2g8v-p4x9
-// xlsx 0.18.5 no tiene fix; mitigamos con:
-// 1) dynamic import (no en bundle inicial)
-// 2) sanitización de fórmulas (=, +, -, @) para evitar CSV injection
-// 3) límite de filas 5000
-// TODO futuro: migrar a exceljs si se requiere edición intensiva
+// Helper sanitize cell - P1/P2
+// P2: xlsx eliminado (HIGH GHSA-4r6h/GHSA-5pgg) → migrado a exceljs (ver excelExport.ts)
 
 export function sanitizeCell(v: any): any {
   if (typeof v !== 'string') return v
@@ -14,6 +10,18 @@ export function sanitizeCell(v: any): any {
   return v
 }
 
-export async function loadXLSX() {
-  return await import('xlsx')
+export async function loadExcelJS() {
+  return await import('exceljs')
+}
+
+// Descarga workbook exceljs (browser)
+export async function downloadWorkbook(workbook: any, filename: string) {
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 2000)
 }
