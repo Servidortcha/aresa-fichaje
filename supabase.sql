@@ -39,6 +39,9 @@ create table if not exists public.geocercas (
   created_at timestamptz default now()
 );
 alter table public.geocercas enable row level security;
+drop policy if exists "geocercas_all" on public.geocercas;
+drop policy if exists "geocercas_select" on public.geocercas;
+drop policy if exists "geocercas_admin_write" on public.geocercas;
 create policy "geocercas_all" on public.geocercas for all using (true) with check (true);
 -- Si quieres restringir creación solo admin, reemplaza por:
 -- create policy "geocercas_select" on public.geocercas for select using (true);
@@ -59,9 +62,12 @@ create table if not exists public.fichajes (
   created_at timestamptz default now()
 );
 alter table public.fichajes enable row level security;
+drop policy if exists "fichajes_select_own_or_admin" on public.fichajes;
 create policy "fichajes_select_own_or_admin" on public.fichajes for select using (
   auth.uid() = user_id or exists(select 1 from public.profiles p where p.id=auth.uid() and p.rol='admin')
 );
+drop policy if exists "fichajes_insert_own" on public.fichajes;
+drop policy if exists "fichajes_insert_own_or_admin" on public.fichajes;
 create policy "fichajes_insert_own" on public.fichajes for insert with check (auth.uid() = user_id);
 -- indices
 create index if not exists idx_fichajes_user on public.fichajes(user_id, created_at desc);
@@ -71,10 +77,16 @@ create index if not exists idx_fichajes_created on public.fichajes(created_at de
 insert into storage.buckets (id, name, public) values ('fichajes-fotos','fichajes-fotos', true)
 on conflict (id) do nothing;
 
+drop policy if exists "fotos_public_read" on storage.objects;
 create policy "fotos_public_read" on storage.objects for select using (bucket_id='fichajes-fotos');
+drop policy if exists "fotos_insert_own" on storage.objects;
 create policy "fotos_insert_own" on storage.objects for insert with check (bucket_id='fichajes-fotos' and auth.role()='authenticated');
+drop policy if exists "fotos_update_own" on storage.objects;
 create policy "fotos_update_own" on storage.objects for update using (bucket_id='fichajes-fotos' and auth.role()='authenticated');
+drop policy if exists "fotos_delete_own" on storage.objects;
 create policy "fotos_delete_own" on storage.objects for delete using (bucket_id='fichajes-fotos' and auth.role()='authenticated');
+drop policy if exists "fotos_read_authenticated" on storage.objects;
+drop policy if exists "fotos_delete_admin_or_owner" on storage.objects;
 
 -- 5) Realtime
 alter publication supabase_realtime add table public.fichajes;
