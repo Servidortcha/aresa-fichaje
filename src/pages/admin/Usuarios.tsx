@@ -5,11 +5,14 @@ import { createClient } from '@supabase/supabase-js'
 const url = import.meta.env.VITE_SUPABASE_URL as string
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
+import { generarPdfUsuario } from '../../lib/pdfUsuario'
+
 export default function Usuarios(){
   const [usuarios, setUsuarios] = useState<any[]>([])
   const [form, setForm] = useState({ nombre:'', email:'', password:'', rol:'empleado' as 'empleado'|'admin' })
   const [msg, setMsg] = useState<string|null>(null)
   const [loading, setLoading] = useState(false)
+  const [lastCreated, setLastCreated] = useState<{ email:string, password:string, nombre:string } | null>(null)
 
   const load = async()=>{
     const { data } = await supabase.from('profiles').select('id,nombre,email,rol,created_at').order('created_at', {ascending:false}).limit(100)
@@ -38,6 +41,9 @@ export default function Usuarios(){
       }
       // intentar auto-confirmar si hace falta: el admin puede confirmar desde Supabase Auth > Users > Confirm, o esperar email
       setMsg(`Usuario ${form.email} creado ✓ (id ${data.user.id.slice(0,8)}). Si requiere confirmación, confírmalo en Supabase > Authentication > Users > ${form.email} > Confirm email.`)
+      setLastCreated({ email: form.email.trim(), password: form.password, nombre: form.nombre.trim() })
+      // auto PDF con contraseña para entregar
+      try{ await generarPdfUsuario({ nombre: form.nombre.trim(), email: form.email.trim(), rol: form.rol, id: data.user.id, created_at: new Date().toISOString(), password: form.password }) } catch(e){ console.warn(e) }
       setForm({ nombre:'', email:'', password:'', rol:'empleado' })
       load()
     }catch(e:any){
@@ -72,6 +78,7 @@ export default function Usuarios(){
           <button type="submit" disabled={loading} className="md:col-span-2 bg-ink text-paper py-2 rounded font-bold disabled:opacity-50">{loading?'Creando...':'Crear usuario'}</button>
         </form>
         {msg && <div className="mt-3 p-3 rounded border text-sm bg-blue-50">{msg}</div>}
+        {lastCreated && <div className="mt-3 p-3 rounded border text-sm bg-green-50 flex justify-between items-center"><span>PDF listo para <b>{lastCreated.nombre}</b> — incluye contraseña para entregar</span><button onClick={()=>generarPdfUsuario({ nombre:lastCreated.nombre, email:lastCreated.email, rol: form.rol, id:'pendiente', created_at:new Date().toISOString(), password:lastCreated.password })} className="px-3 py-1 bg-green-600 text-white rounded text-xs">Descargar PDF de nuevo</button></div>}
         <div className="mt-4 bg-amber-50 border border-amber-200 rounded p-3 text-xs">
           <b>¿Cómo crear más usuarios?</b><br/>
           1) <b>Desde acá</b> (admin): completa el form arriba y crea.<br/>
@@ -96,8 +103,9 @@ export default function Usuarios(){
                       <option value="admin">admin</option>
                     </select>
                   </td>
-                  <td className="p-2 flex gap-1 justify-center">
+                  <td className="p-2 flex gap-1 justify-center flex-wrap">
                     <button onClick={()=>navigator.clipboard.writeText(u.email)} className="px-2 py-1 border rounded text-xs">Copiar email</button>
+                    <button onClick={()=>generarPdfUsuario({ nombre:u.nombre, email:u.email, rol:u.rol, id:u.id, created_at:u.created_at })} className="px-2 py-1 bg-ink text-paper rounded text-xs">PDF entrega</button>
                     <button onClick={()=>borrar(u.id)} className="px-2 py-1 bg-red-50 text-red-700 border border-red-200 rounded text-xs">Borrar perfil</button>
                   </td>
                 </tr>
