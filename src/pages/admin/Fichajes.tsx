@@ -25,6 +25,8 @@ export default function Fichajes(){
   const [filtroSucursal, setFiltroSucursal] = useState('')
   const [editing, setEditing] = useState<Fichaje | null>(null)
   const [editForm, setEditForm] = useState({ tipo:'entrada' as Fichaje['tipo'], sucursal_id:'', fecha:'', hora:'' })
+  const [pareja, setPareja] = useState<Fichaje | null>(null)
+  const [parejaForm, setParejaForm] = useState({ tipo:'salida' as Fichaje['tipo'], sucursal_id:'', fecha:'', hora:'' })
   const [showManual, setShowManual] = useState(false)
   const [manual, setManual] = useState({ user_id:'', tipo:'entrada' as Fichaje['tipo'], sucursal_id:'', fecha:'', hora:'' })
   const [msg, setMsg] = useState<string|null>(null)
@@ -125,10 +127,33 @@ export default function Fichajes(){
       return
     } catch(e:any){ setMsg('Error export Simonetti: '+e.message) }
   }
+  const encontrarPareja = (f: Fichaje): Fichaje | null => {
+    const dia = f.created_at.slice(0,10)
+    const delDia = fichajes.filter(x=> x.user_id===f.user_id && x.created_at.slice(0,10)===dia).sort((a,b)=> a.created_at.localeCompare(b.created_at))
+    const idx = delDia.findIndex(x=> x.id===f.id)
+    if(idx===-1) return null
+    // si es entrada, busca siguiente salida; si es salida, busca anterior entrada
+    if(f.tipo==='entrada'){
+      for(let i=idx+1;i<delDia.length;i++) if(delDia[i].tipo==='salida') return delDia[i]
+      // si no hay salida después, busca salida más cercana del día
+      return delDia.find(x=> x.tipo==='salida' && x.id!==f.id) ?? null
+    } else if(f.tipo==='salida'){
+      for(let i=idx-1;i>=0;i--) if(delDia[i].tipo==='entrada') return delDia[i]
+      return delDia.find(x=> x.tipo==='entrada' && x.id!==f.id) ?? null
+    }
+    // para pausas, muestra entrada del día como contexto
+    return delDia.find(x=> (x.tipo==='entrada' || x.tipo==='salida') && x.id!==f.id) ?? null
+  }
   const openEdit = (f:Fichaje)=>{
     setEditing(f)
     const d = new Date(f.created_at)
     setEditForm({ tipo:f.tipo, sucursal_id: f.geocerca_id ?? '', fecha: d.toISOString().slice(0,10), hora: d.toTimeString().slice(0,5) })
+    const p = encontrarPareja(f)
+    setPareja(p)
+    if(p){
+      const dp = new Date(p.created_at)
+      setParejaForm({ tipo:p.tipo, sucursal_id: p.geocerca_id ?? '', fecha: dp.toISOString().slice(0,10), hora: dp.toTimeString().slice(0,5) })
+    } else setParejaForm({ tipo:'salida' as any, sucursal_id:'', fecha:'', hora:'' })
     setMsg(null)
   }
 
@@ -136,28 +161,32 @@ export default function Fichajes(){
     if(!editing) return
     const suc = sucursales.find(s=>s.id===editForm.sucursal_id)
     const newDate = new Date(`${editForm.fecha}T${editForm.hora}:00`)
-    // recalcular lat/lng/distancia si cambia sucursal
     let lat = editing.lat, lng = editing.lng, distancia = editing.distancia_m, dentro = editing.dentro_geocerca
     let geocerca_id: string | null = editForm.sucursal_id || null
-    if(suc){
-      lat = suc.lat; lng = suc.lng
-      const d = distanciaMetros(editing.lat, editing.lng, suc.lat, suc.lng)
-      distancia = Math.round(d); dentro = d <= suc.radio_m
-    }
-    // si no hay sucursal seleccionada, mantener coords originales pero marcar fuera
-    if(!suc){
-      geocerca_id = null; dentro = false
-    }
+    if(suc){ lat = suc.lat; lng = suc.lng; const d = distanciaMetros(editing.lat, editing.lng, suc.lat, suc.lng); distancia = Math.round(d); dentro = d <= suc.radio_m }
+    if(!suc){ geocerca_id = null; dentro = false }
     const { error } = await supabase.from('fichajes').update({
-      tipo: editForm.tipo,
-      geocerca_id,
-      lat, lng,
-      distancia_m: distancia,
-      dentro_geocerca: dentro,
-      created_at: newDate.toISOString(),
+      tipo: editForm.tipo, geocerca_id, lat, lng, distancia_m: distancia, dentro_geocerca: dentro, created_at: newDate.toISOString(),
     }).eq('id', editing.id)
-    if(error) setMsg('Error: '+error.message)
-    else { setEditing(null); load() }
+    if(error) return setMsg('Error: '+error.message)
+    // si hay pareja y se editó (fecha/hora/sucursal/tipo distintos), guarda también
+    if(pareja){
+      const pSuc = sucursales.find(s=>s.id===parejaForm.sucursal_id)
+      const pDate = new Date(`${parejaForm.fecha}T${parejaForm.hora}:00`)
+      const origD = new Date(pareja.created_at)
+      const changed = parejaForm.tipo!==pareja.tipo || parejaForm.sucursal_id!==(pareja.geocerca_id??'') || parejaForm.fecha!==origD.toISOString().slice(0,10) || parejaForm.hora!==origD.toTimeString().slice(0,5)
+      if(changed){
+        let pLat = pareja.lat, pLng = pareja.lng, pDist = pareja.distancia_m, pDentro = pareja.dentro_geocerca
+        let pGeocerca_id: string | null = parejaForm.sucursal_id || null
+        if(pSuc){ pLat = pSuc.lat; pLng = pSuc.lng; const dd = distanciaMetros(pareja.lat, pareja.lng, pSuc.lat, pSuc.lng); pDist = Math.round(dd); pDentro = dd <= pSuc.radio_m }
+        if(!pSuc){ pGeocerca_id = null; pDentro = false }
+        const { error: pErr } = await supabase.from('fichajes').update({
+          tipo: parejaForm.tipo, geocerca_id: pGeocerca_id, lat: pLat, lng: pLng, distancia_m: pDist, dentro_geocerca: pDentro, created_at: pDate.toISOString(),
+        }).eq('id', pareja.id)
+        if(pErr) return setMsg('Editado principal ✓ pero pareja falló: '+pErr.message)
+      }
+    }
+    setEditing(null); setPareja(null); load()
   }
 
   const crearManual = async()=>{
@@ -250,26 +279,52 @@ export default function Fichajes(){
       {msg && <div className="bg-blue-50 border border-blue-200 p-3 rounded text-sm">{msg}</div>}
 
       {editing && (
-        <div className="fixed inset-0 bg-black/60 grid place-items-center z-[9999] p-4" onClick={()=>setEditing(null)}>
-          <div className="bg-white rounded-xl p-5 w-full max-w-lg space-y-3" onClick={e=>e.stopPropagation()}>
-            <h3 className="font-bold">Editar fichaje — {editing.profiles?.nombre}</h3>
-            <p className="text-xs text-gray-500">{editing.id}</p>
-            <select value={editForm.tipo} onChange={e=>setEditForm({...editForm, tipo:e.target.value as any})} className="w-full border rounded px-3 py-2">
-              <option value="entrada">Entrada</option><option value="salida">Salida</option>
-            </select>
-            <select value={editForm.sucursal_id} onChange={e=>setEditForm({...editForm, sucursal_id:e.target.value})} className="w-full border rounded px-3 py-2">
-              <option value="">Sin sucursal (fuera)</option>
-              {sucursales.map(s=> <option key={s.id} value={s.id}>{s.nombre} · {s.lat.toFixed(4)},{s.lng.toFixed(4)}</option>)}
-            </select>
-            <div className="flex gap-2">
-              <input type="date" value={editForm.fecha} onChange={e=>setEditForm({...editForm, fecha:e.target.value})} className="border rounded px-3 py-2 flex-1" />
-              <input type="time" value={editForm.hora} onChange={e=>setEditForm({...editForm, hora:e.target.value})} className="border rounded px-3 py-2 w-32" />
+        <div className="fixed inset-0 bg-black/60 grid place-items-center z-[9999] p-4" onClick={()=>{setEditing(null); setPareja(null)}}>
+          <div className="bg-white rounded-xl p-5 w-full max-w-2xl space-y-4 max-h-[90vh] overflow-auto" onClick={e=>e.stopPropagation()}>
+            <h3 className="font-bold">Editar jornada — {editing.profiles?.nombre}</h3>
+            <p className="text-xs text-gray-500">{editing.id.slice(0,8)} · {new Date(editing.created_at).toLocaleString()} {pareja ? `· pareja ${pareja.id.slice(0,8)} · ${new Date(pareja.created_at).toLocaleString()}` : '· sin pareja (jornada abierta)'}</p>
+            {/* Fichaje principal */}
+            <div className="border rounded-xl p-4 space-y-3 bg-gray-50">
+              <div className="flex items-center gap-2"><span className={`px-2 py-1 rounded text-xs font-bold ${editForm.tipo==='entrada'?'bg-green-600 text-white':'bg-red-600 text-white'}`}>{editForm.tipo}</span><span className="text-sm font-semibold">Fichaje seleccionado</span>{editing.foto_url && <a href={editing.foto_url} target="_blank" rel="noreferrer" className="ml-auto"><img src={editing.foto_url} className="w-10 h-10 object-cover rounded border" /></a>}</div>
+              <select value={editForm.tipo} onChange={e=>setEditForm({...editForm, tipo:e.target.value as any})} className="w-full border rounded px-3 py-2">
+                <option value="entrada">Entrada</option><option value="salida">Salida</option>
+              </select>
+              <select value={editForm.sucursal_id} onChange={e=>setEditForm({...editForm, sucursal_id:e.target.value})} className="w-full border rounded px-3 py-2">
+                <option value="">Sin sucursal (fuera)</option>
+                {sucursales.map(s=> <option key={s.id} value={s.id}>{s.nombre} · {s.lat.toFixed(4)},{s.lng.toFixed(4)}</option>)}
+              </select>
+              <div className="flex gap-2">
+                <input type="date" value={editForm.fecha} onChange={e=>setEditForm({...editForm, fecha:e.target.value})} className="border rounded px-3 py-2 flex-1" />
+                <input type="time" value={editForm.hora} onChange={e=>setEditForm({...editForm, hora:e.target.value})} className="border rounded px-3 py-2 w-32" />
+              </div>
+              <div className="text-xs text-gray-500">{editing.direccion ?? ''} · {editing.lat.toFixed(5)},{editing.lng.toFixed(5)} · {editing.dentro_geocerca ? '✓ Dentro' : `⚠ ${editing.distancia_m}m`}</div>
             </div>
+            {/* Pareja si existe */}
+            {pareja ? (
+              <div className="border rounded-xl p-4 space-y-3 bg-white">
+                <div className="flex items-center gap-2"><span className={`px-2 py-1 rounded text-xs font-bold ${parejaForm.tipo==='entrada'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`}>{parejaForm.tipo}</span><span className="text-sm font-semibold">Pareja del mismo día</span><span className="text-xs text-gray-500">{pareja.id.slice(0,8)} · {new Date(pareja.created_at).toLocaleDateString()}</span>{pareja.foto_url && <a href={pareja.foto_url} target="_blank" rel="noreferrer" className="ml-auto"><img src={pareja.foto_url} className="w-10 h-10 object-cover rounded border" /></a>}<button onClick={()=>{ const tmp=editing; const tmpForm=editForm; setEditing(pareja); setEditForm(parejaForm); setPareja(tmp); setParejaForm(tmpForm)}} className="ml-2 text-xs border px-2 py-1 rounded">Intercambiar</button></div>
+                <select value={parejaForm.tipo} onChange={e=>setParejaForm({...parejaForm, tipo:e.target.value as any})} className="w-full border rounded px-3 py-2">
+                  <option value="entrada">Entrada</option><option value="salida">Salida</option>
+                </select>
+                <select value={parejaForm.sucursal_id} onChange={e=>setParejaForm({...parejaForm, sucursal_id:e.target.value})} className="w-full border rounded px-3 py-2">
+                  <option value="">Sin sucursal (fuera)</option>
+                  {sucursales.map(s=> <option key={s.id} value={s.id}>{s.nombre} · {s.lat.toFixed(4)},{s.lng.toFixed(4)}</option>)}
+                </select>
+                <div className="flex gap-2">
+                  <input type="date" value={parejaForm.fecha} onChange={e=>setParejaForm({...parejaForm, fecha:e.target.value})} className="border rounded px-3 py-2 flex-1" />
+                  <input type="time" value={parejaForm.hora} onChange={e=>setParejaForm({...parejaForm, hora:e.target.value})} className="border rounded px-3 py-2 w-32" />
+                </div>
+                <div className="text-xs text-gray-500">{pareja.direccion ?? ''} · {pareja.lat.toFixed(5)},{pareja.lng.toFixed(5)} · {pareja.dentro_geocerca ? '✓ Dentro' : `⚠ ${pareja.distancia_m}m`} · <a href={`https://www.google.com/maps?q=${pareja.lat},${pareja.lng}`} target="_blank" rel="noreferrer" className="text-blue-600 underline">Ver mapa</a></div>
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">Se guardarán ambos fichajes al pulsar Guardar. Si solo quieres editar uno, deja el otro sin cambios.</p>
+              </div>
+            ) : (
+              <div className="border-2 border-dashed rounded-xl p-4 text-center text-sm text-gray-500">Jornada abierta — no hay pareja entrada/salida para {new Date(editing.created_at).toLocaleDateString()}. Creá la pareja con + Manual si falta.</div>
+            )}
             <div className="flex gap-2">
-              <button onClick={saveEdit} className="flex-1 bg-red-600 text-white py-2 rounded font-bold">Guardar cambios</button>
-              <button onClick={()=>setEditing(null)} className="flex-1 border py-2 rounded">Cancelar</button>
+              <button onClick={saveEdit} className="flex-1 bg-red-600 text-white py-3 rounded font-bold">Guardar {pareja ? 'ambos' : ''} cambios</button>
+              <button onClick={()=>{setEditing(null); setPareja(null)}} className="flex-1 border py-3 rounded">Cancelar</button>
             </div>
-            <p className="text-xs text-gray-500">Cambiar sucursal recalculará lat/lng a la sucursal y distancia. Fecha/hora se guarda en UTC.</p>
+            <p className="text-xs text-gray-500 text-center">Cambiar sucursal recalculará lat/lng a la sucursal y distancia. Fecha/hora se guarda en UTC.</p>
           </div>
         </div>
       )}
