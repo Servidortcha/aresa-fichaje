@@ -7,7 +7,14 @@ if (!url || !anon) {
   console.warn('Faltan VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY - revisa .env')
 }
 
-export const supabase = createClient(url ?? '', anon ?? '')
+export const supabase = createClient(url ?? '', anon ?? '', {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+  }
+})
 
 // Helper para bucket fichajes-fotos: soporta bucket público y privado (P1)
 // Si bucket es privado, getPublicUrl devuelve URL no válida; intentamos signedUrl con 1h

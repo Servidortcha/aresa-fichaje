@@ -26,10 +26,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUserId(session?.user.id ?? null)
       if(session) touch()
     })
-    // auto logout por inactividad 12h (antes bug: leía aresa_last_login pero escribía aresa_last_active)
+    // auto logout por inactividad 30 días si "recordar" está activo, sino 12h
     const check = setInterval(async()=>{
       const last = localStorage.getItem(LS_KEY)
-      if(last && Date.now() - Number(last) > 12*60*60*1000){
+      const remember = localStorage.getItem('aresa_remember') === '1'
+      const limit = remember ? 30*24*60*60*1000 : 12*60*60*1000
+      if(last && Date.now() - Number(last) > limit){
         await supabase.auth.signOut()
         localStorage.removeItem(LS_KEY)
       }
