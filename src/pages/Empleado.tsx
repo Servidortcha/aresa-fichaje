@@ -4,6 +4,7 @@ import { supabase, type Geocerca, getFotoUrl } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { dentroDeGeocerca, reverseGeocode } from '../lib/geofence'
 import { isMockLocation, watermarkFoto, canFichar } from '../lib/security'
+import { enqueue, getQueue, dequeue } from '../lib/offlineQueue'
 
 type Tipo = 'entrada' | 'pausa_inicio' | 'pausa_fin' | 'salida'
 
@@ -80,11 +81,37 @@ export default function Empleado() {
     setHistorialHoy(hoyList)
   }
 
+  const [queueCount, setQueueCount] = useState(0)
+  const refreshQueue = () => setQueueCount(getQueue().filter(q=> q.user_id===userId).length)
   useEffect(() => {
     supabase.from('geocercas').select('*').eq('activa', true).order('nombre').then(({ data }) => setSucursales((data as Geocerca[]) ?? []))
     loadHistorial()
+    refreshQueue()
+    const onOnline = async()=> { await reintentarCola(); refreshQueue(); await loadHistorial() }
+    window.addEventListener('online', onOnline)
+    // reintento inicial si hay cola y hay conexión
+    if(navigator.onLine) reintentarCola().then(refreshQueue)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
+
+  const reintentarCola = async()=>{
+    const q = getQueue().filter(x=> x.user_id===userId)
+    for(const item of q){
+      try{
+        const blob = await (await fetch(item.foto_dataUrl)).blob()
+        const path = `${item.user_id}/${Date.now()}-${item.id.slice(0,4)}.jpg`
+        const { error: upErr } = await supabase.storage.from('fichajes-fotos').upload(path, blob, { contentType:'image/jpeg', upsert:false })
+        if(upErr) throw upErr
+        let foto_url: string
+        try{ foto_url = await getFotoUrl(path) } catch{ const { data: pub } = supabase.storage.from('fichajes-fotos').getPublicUrl(path); foto_url = pub.publicUrl }
+        const { error } = await supabase.from('fichajes').insert({
+          user_id: item.user_id, tipo: item.tipo as any, lat:item.lat, lng:item.lng, direccion:item.direccion, foto_url, dentro_geocerca:item.dentro_geocerca, geocerca_id:item.geocerca_id, distancia_m:item.distancia_m, created_at: item.created_at
+        })
+        if(error) throw error
+        dequeue(item.id)
+      }catch(e){ console.warn('queue retry fail', e); break }
+    }
+  }
 
   const startCamera = async () => {
     try {
@@ -183,7 +210,20 @@ export default function Empleado() {
       setView('home')
       if (!dentro && sucursales.length>0) setMsg(`✓ ${tipo} registrado`)
       else setMsg(`✓ ${tipo} registrado ✓`)
-    } catch (e: any) { setMsg('Error al fichar: ' + e.message) } finally { setEnviando(false) }
+      refreshQueue()
+    } catch (e: any) {
+      // P3 offline queue: si falla por red, encola para reintento
+      const isNetwork = !navigator.onLine || String(e.message ?? '').toLowerCase().includes('fetch') || String(e.message ?? '').includes('network')
+      if(isNetwork){
+        try{
+          const { dentro, distancia, geocerca_id } = resolverGeocerca(curCoords)
+          enqueue({ id: crypto.randomUUID(), user_id: userId!, tipo, lat: curCoords.lat, lng: curCoords.lng, direccion, foto_dataUrl: fotoDataUrl, dentro_geocerca: dentro, geocerca_id, distancia_m: distancia, created_at: new Date().toISOString(), attempts: 0 })
+          refreshQueue()
+          setMsg('⚠ Sin conexión — fichaje guardado offline y se enviará al reconectar ✓ (queda en cola)')
+          setFotoPreview(null); stopCamera(); setView('home')
+        } catch(qe:any){ setMsg('Error al fichar: '+e.message+' (queue: '+qe.message+')') }
+      } else { setMsg('Error al fichar: ' + e.message) }
+    } finally { setEnviando(false) }
   }
 
   const ficharAuto = async (fotoDataUrl: string) => {
@@ -261,7 +301,8 @@ export default function Empleado() {
             </>
           ) : null}
 
-          {msg && <div className="mt-4 p-3 rounded border text-sm" style={{ background: msg.startsWith('✓') ? '#ecfdf5' : '#fef2f2' }}>{msg}</div>}
+          {msg && <div className="mt-4 p-3 rounded border text-sm" style={{ background: msg.startsWith('✓') ? '#ecfdf5' : msg.startsWith('⚠') ? '#fffbeb' : '#fef2f2' }}>{msg}</div>}
+          {queueCount>0 && <div className="mt-3 p-3 rounded border text-sm bg-amber-50 flex justify-between items-center"><span>⏳ {queueCount} fichaje(s) offline en cola</span><button onClick={async()=>{ await reintentarCola(); refreshQueue(); await loadHistorial(); setMsg('Reintento cola completado') }} className="px-3 py-1 bg-amber-600 text-white rounded text-xs">Reintentar ahora</button></div>}
         </div>
 
         <div className="bg-white p-4 rounded-xl shadow">
