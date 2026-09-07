@@ -70,11 +70,6 @@ export default function Empleado() {
     return () => clearInterval(i)
   }, [])
 
-  useEffect(() => {
-    supabase.from('geocercas').select('*').eq('activa', true).order('nombre').then(({ data }) => setSucursales((data as Geocerca[]) ?? []))
-    loadHistorial()
-  }, [userId])
-
   const loadHistorial = async () => {
     if (!userId) return
     const { data } = await supabase.from('fichajes').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(20)
@@ -84,6 +79,12 @@ export default function Empleado() {
     const hoyList = (data ?? []).filter((f: any) => f.created_at.startsWith(hoy)).reverse() // asc
     setHistorialHoy(hoyList)
   }
+
+  useEffect(() => {
+    supabase.from('geocercas').select('*').eq('activa', true).order('nombre').then(({ data }) => setSucursales((data as Geocerca[]) ?? []))
+    loadHistorial()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
 
   const startCamera = async () => {
     try {
@@ -132,40 +133,44 @@ export default function Empleado() {
     }
   }
 
-  const ficharAuto = async (fotoDataUrl: string) => {
-    const tipo = ficharTipo
-    if (!userId) return setMsg('No autenticado')
-    // coords puede venir del estado actualizado
-    let curCoords = coords
-    if (!curCoords) {
-      // intenta obtener una vez más
-      setMsg('Esperando GPS...')
-      return
+  // Helpers deduplicados (P0 refactor): geocerca más cercana + persistencia única
+  const sucursalesOrdenadas = coords ? [...sucursales].map(s=>{
+    const r = dentroDeGeocerca(coords.lat, coords.lng, s.lat, s.lng, s.radio_m)
+    return { ...s, _dist: r.distancia, _dentro: r.dentro }
+  }).sort((a:any,b:any)=>a._dist-b._dist) : sucursales as any[]
+
+  const resolverGeocerca = (curCoords: {lat:number,lng:number}) => {
+    let target: Geocerca | null = null
+    let dentro=false, distancia:number|null=null
+    if(selectedId === 'auto'){
+      let min=Infinity
+      for(const g of sucursales){
+        const r = dentroDeGeocerca(curCoords.lat, curCoords.lng, g.lat, g.lng, g.radio_m)
+        if(r.distancia < min){ min=r.distancia; target=g; dentro=r.dentro; distancia=r.distancia }
+      }
+    } else {
+      target = sucursales.find(s=>s.id===selectedId) ?? null
+      if(target){
+        const r = dentroDeGeocerca(curCoords.lat, curCoords.lng, target.lat, target.lng, target.radio_m)
+        dentro=r.dentro; distancia=r.distancia
+      }
     }
-    if (!fotoDataUrl) return setMsg('Foto no capturada')
+    const geocerca_id = target?.id ?? (sucursalesOrdenadas[0] as any)?.id ?? null
+    return { target, dentro, distancia, geocerca_id }
+  }
+
+  const persistirFichaje = async (tipo: Tipo, curCoords: {lat:number,lng:number}, fotoDataUrl: string) => {
+    if (!userId) { setMsg('No autenticado'); return }
+    if (!fotoDataUrl) { setMsg('Foto no capturada'); return }
     setEnviando(true); setMsg('Registrando fichaje...')
     try {
-      let target: Geocerca | null = null
-      let dentro=false, distancia:number|null=null
-      if(selectedId === 'auto'){
-        let min=Infinity
-        for(const g of sucursales){
-          const r = dentroDeGeocerca(curCoords.lat, curCoords.lng, g.lat, g.lng, g.radio_m)
-          if(r.distancia < min){ min=r.distancia; target=g; dentro=r.dentro; distancia=r.distancia }
-        }
-      } else {
-        target = sucursales.find(s=>s.id===selectedId) ?? null
-        if(target){
-          const r = dentroDeGeocerca(curCoords.lat, curCoords.lng, target.lat, target.lng, target.radio_m)
-          dentro=r.dentro; distancia=r.distancia
-        }
-      }
-      const geocerca_id = target?.id ?? (sucursalesOrdenadas[0] as any)?.id ?? null
+      const { dentro, distancia, geocerca_id } = resolverGeocerca(curCoords)
       const blob = await (await fetch(fotoDataUrl)).blob()
       const path = `${userId}/${Date.now()}.jpg`
       const { error: upErr } = await supabase.storage.from('fichajes-fotos').upload(path, blob, { contentType: 'image/jpeg', upsert: false })
       if (upErr) throw upErr
       const { data: pub } = supabase.storage.from('fichajes-fotos').getPublicUrl(path)
+      // dentro/distancia se recalculan server-side por trigger validar_fichaje, pero enviamos para UX inmediata
       const { error } = await supabase.from('fichajes').insert({
         user_id: userId, tipo, lat: curCoords.lat, lng: curCoords.lng, direccion, foto_url: pub.publicUrl, dentro_geocerca: dentro, geocerca_id, distancia_m: distancia,
       })
@@ -179,10 +184,10 @@ export default function Empleado() {
     } catch (e: any) { setMsg('Error al fichar: ' + e.message) } finally { setEnviando(false) }
   }
 
-  const sucursalesOrdenadas = coords ? [...sucursales].map(s=>{
-    const r = dentroDeGeocerca(coords.lat, coords.lng, s.lat, s.lng, s.radio_m)
-    return { ...s, _dist: r.distancia, _dentro: r.dentro }
-  }).sort((a:any,b:any)=>a._dist-b._dist) : sucursales as any[]
+  const ficharAuto = async (fotoDataUrl: string) => {
+    if (!coords) { setMsg('Esperando GPS...'); return }
+    await persistirFichaje(ficharTipo, coords, fotoDataUrl)
+  }
 
   const jornada = calcularJornada(historialHoy)
   // individual: solo la jornada actual, no acumulable del día
@@ -204,47 +209,12 @@ export default function Empleado() {
   }
 
   const fichar = async () => {
-    const tipo = ficharTipo
-    if (!userId) return setMsg('No autenticado')
     if (!coords) return setMsg('Primero obtene tu ubicación con el botón GPS')
     if (!fotoPreview) return setMsg('Primero saca la foto con la cámara')
-    setEnviando(true); setMsg(null)
-    try {
-      let target: Geocerca | null = null
-      let dentro=false, distancia:number|null=null
-      if(selectedId === 'auto'){
-        let min=Infinity
-        for(const g of sucursales){
-          const r = dentroDeGeocerca(coords.lat, coords.lng, g.lat, g.lng, g.radio_m)
-          if(r.distancia < min){ min=r.distancia; target=g; dentro=r.dentro; distancia=r.distancia }
-        }
-      } else {
-        target = sucursales.find(s=>s.id===selectedId) ?? null
-        if(target){
-          const r = dentroDeGeocerca(coords.lat, coords.lng, target.lat, target.lng, target.radio_m)
-          dentro=r.dentro; distancia=r.distancia
-        }
-      }
-      const geocerca_id = target?.id ?? (sucursalesOrdenadas[0] as any)?.id ?? null
-      const blob = await (await fetch(fotoPreview)).blob()
-      const path = `${userId}/${Date.now()}.jpg`
-      const { error: upErr } = await supabase.storage.from('fichajes-fotos').upload(path, blob, { contentType: 'image/jpeg', upsert: false })
-      if (upErr) throw upErr
-      const { data: pub } = supabase.storage.from('fichajes-fotos').getPublicUrl(path)
-      const { error } = await supabase.from('fichajes').insert({
-        user_id: userId, tipo, lat: coords.lat, lng: coords.lng, direccion, foto_url: pub.publicUrl, dentro_geocerca: dentro, geocerca_id, distancia_m: distancia,
-      })
-      if (error) throw error
-      setFotoPreview(null)
-      stopCamera()
-      await loadHistorial()
-      setView('home')
-      if (!dentro && sucursales.length>0) setMsg(`✓ ${tipo} registrado`)
-      else setMsg(`✓ ${tipo} registrado ✓`)
-    } catch (e: any) { setMsg('Error al fichar: ' + e.message) } finally { setEnviando(false) }
+    await persistirFichaje(ficharTipo, coords, fotoPreview)
   }
 
-  useEffect(()=>()=>stopCamera(),[])
+  useEffect(()=>()=>{ stream?.getTracks().forEach(t => t.stop()) },[stream])
 
   // HOME VIEW
   if (view === 'home') {

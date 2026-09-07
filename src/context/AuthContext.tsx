@@ -16,25 +16,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    const LS_KEY = 'aresa_last_active'
+    const touch = () => localStorage.setItem(LS_KEY, Date.now().toString())
     supabase.auth.getSession().then(({ data }) => {
       setUserId(data.session?.user.id ?? null)
-      // auditoría: sesión segura 12h
-      if(data.session) localStorage.setItem('aresa_last_login', new Date().toISOString())
+      if(data.session) touch()
     })
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setUserId(session?.user.id ?? null)
-      if(session) localStorage.setItem('aresa_last_login', new Date().toISOString())
+      if(session) touch()
     })
-    // auto logout por inactividad 12h
+    // auto logout por inactividad 12h (antes bug: leía aresa_last_login pero escribía aresa_last_active)
     const check = setInterval(async()=>{
-      const last = localStorage.getItem('aresa_last_login')
-      if(last && Date.now() - new Date(last).getTime() > 12*60*60*1000){
+      const last = localStorage.getItem(LS_KEY)
+      if(last && Date.now() - Number(last) > 12*60*60*1000){
         await supabase.auth.signOut()
+        localStorage.removeItem(LS_KEY)
       }
     }, 60_000)
-    const onAct = ()=> localStorage.setItem('aresa_last_active', Date.now().toString())
-    window.addEventListener('click', onAct); window.addEventListener('keydown', onAct)
-    return () => { sub.subscription.unsubscribe(); clearInterval(check); window.removeEventListener('click', onAct); window.removeEventListener('keydown', onAct) }
+    window.addEventListener('click', touch); window.addEventListener('keydown', touch)
+    return () => { sub.subscription.unsubscribe(); clearInterval(check); window.removeEventListener('click', touch); window.removeEventListener('keydown', touch) }
   }, [])
 
   useEffect(() => {

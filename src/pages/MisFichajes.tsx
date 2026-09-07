@@ -11,21 +11,32 @@ type Fichaje = {
   foto_url: string | null
 }
 
-// jornadas individuales - no acumulable: cada entrada/salida es una jornada separada
-function extraerJornadas(fichajesAsc: Fichaje[]): { entrada: Fichaje; salida: Fichaje | null; ms: number | null }[] {
-  const jornadas: { entrada: Fichaje; salida: Fichaje | null; ms: number | null }[] = []
+// jornadas individuales - homogéneo con Empleado.tsx:11 (soporta pausa_inicio/pausa_fin)
+function extraerJornadas(fichajesAsc: Fichaje[]): { entrada: Fichaje; salida: Fichaje | null; ms: number | null; conPausa: boolean }[] {
+  const jornadas: { entrada: Fichaje; salida: Fichaje | null; ms: number | null; conPausa: boolean }[] = []
   let cur: Fichaje | null = null
+  let openStart: number | null = null
+  let totalMs = 0
+  let conPausa = false
   for (const f of fichajesAsc) {
+    const t = new Date(f.created_at).getTime()
     if (f.tipo === 'entrada') {
-      if (cur) jornadas.push({ entrada: cur, salida: null, ms: null })
-      cur = f
+      if (cur && openStart !== null) {
+        // jornada previa sin cerrar
+        jornadas.push({ entrada: cur, salida: null, ms: null, conPausa })
+      }
+      cur = f; openStart = t; totalMs = 0; conPausa = false
+    } else if (f.tipo === 'pausa_inicio' && openStart !== null) {
+      totalMs += t - openStart; openStart = null; conPausa = true
+    } else if (f.tipo === 'pausa_fin' && openStart === null) {
+      openStart = t
     } else if (f.tipo === 'salida' && cur) {
-      const ms = new Date(f.created_at).getTime() - new Date(cur.created_at).getTime()
-      jornadas.push({ entrada: cur, salida: f, ms })
-      cur = null
+      if (openStart !== null) totalMs += t - openStart
+      jornadas.push({ entrada: cur, salida: f, ms: totalMs, conPausa })
+      cur = null; openStart = null; totalMs = 0; conPausa = false
     }
   }
-  if (cur) jornadas.push({ entrada: cur, salida: null, ms: null })
+  if (cur) jornadas.push({ entrada: cur, salida: null, ms: null, conPausa })
   return jornadas
 }
 function formatHoras(ms: number): string {
@@ -53,7 +64,7 @@ export default function MisFichajes(){
   const [solicitudes, setSolicitudes] = useState<any[]>([])
   const [sucursales, setSucursales] = useState<any[]>([])
   const [showSol, setShowSol] = useState<{ open:boolean, fichaje?:Fichaje, tipo:'modificacion'|'creacion' }>({ open:false, tipo:'creacion' })
-  const [solForm, setSolForm] = useState({ fecha:'', hora:'', sucursal_id:'', motivo:'' })
+  const [solForm, setSolForm] = useState({ fecha:'', hora:'', sucursal_id:'', motivo:'', tipo_fichaje:'entrada' as 'entrada'|'salida' })
   const [msg, setMsg] = useState<string|null>(null)
 
   useEffect(()=>{
@@ -101,9 +112,9 @@ export default function MisFichajes(){
     const now=new Date()
     if(tipo==='modificacion' && f){
       const d=new Date(f.created_at)
-      setSolForm({ fecha: d.toISOString().slice(0,10), hora: d.toTimeString().slice(0,5), sucursal_id:'', motivo:'' })
+      setSolForm({ fecha: d.toISOString().slice(0,10), hora: d.toTimeString().slice(0,5), sucursal_id:'', motivo:'', tipo_fichaje: f.tipo==='salida' ? 'salida':'entrada' })
     } else {
-      setSolForm({ fecha: now.toISOString().slice(0,10), hora: now.toTimeString().slice(0,5), sucursal_id:'', motivo:'' })
+      setSolForm({ fecha: now.toISOString().slice(0,10), hora: now.toTimeString().slice(0,5), sucursal_id:'', motivo:'', tipo_fichaje:'entrada' })
     }
     setShowSol({ open:true, fichaje:f, tipo })
     setMsg(null)
@@ -120,11 +131,19 @@ export default function MisFichajes(){
       sucursal_id: solForm.sucursal_id || null,
       motivo: solForm.motivo.trim(),
       estado: 'pendiente',
+      tipo_fichaje: solForm.tipo_fichaje, // P0 fix: permite alta como entrada o salida
     }
     if(showSol.tipo==='modificacion' && showSol.fichaje) payload.fichaje_id = showSol.fichaje.id
     const { error } = await supabase.from('solicitudes_modificacion').insert(payload)
-    if(error) setMsg('Error: '+error.message)
-    else { setShowSol({ open:false, tipo:'creacion' }); setMsg('Solicitud enviada ✓ — queda pendiente de aprobación'); reloadSols() }
+    if(error) {
+      // fallback si columna tipo_fichaje no existe (migración pendiente)
+      if(error.message.includes('tipo_fichaje')) {
+        delete payload.tipo_fichaje
+        const { error:e2 } = await supabase.from('solicitudes_modificacion').insert(payload)
+        if(e2) return setMsg('Error: '+e2.message)
+      } else return setMsg('Error: '+error.message)
+    }
+    setShowSol({ open:false, tipo:'creacion' }); setMsg('Solicitud enviada ✓ — queda pendiente de aprobación'); reloadSols()
   }
 
   if(loading) return <div className="p-10 text-center">Cargando fichajes...</div>
@@ -232,6 +251,12 @@ export default function MisFichajes(){
             <div className="grid gap-2">
               <label className="text-sm">Fecha solicitada<input type="date" value={solForm.fecha} onChange={e=>setSolForm({...solForm, fecha:e.target.value})} className="w-full border rounded px-3 py-2" /></label>
               <label className="text-sm">Hora solicitada<input type="time" value={solForm.hora} onChange={e=>setSolForm({...solForm, hora:e.target.value})} className="w-full border rounded px-3 py-2" /></label>
+              <label className="text-sm">Tipo de fichaje
+                <select value={solForm.tipo_fichaje} onChange={e=>setSolForm({...solForm, tipo_fichaje:e.target.value as any})} className="w-full border rounded px-3 py-2">
+                  <option value="entrada">Entrada</option>
+                  <option value="salida">Salida</option>
+                </select>
+              </label>
               <label className="text-sm">Sucursal solicitada
                 <select value={solForm.sucursal_id} onChange={e=>setSolForm({...solForm, sucursal_id:e.target.value})} className="w-full border rounded px-3 py-2">
                   <option value="">Sin asignar / igual</option>

@@ -14,12 +14,18 @@ export default function Login() {
     e.preventDefault()
     setMsg(null)
     if (mode === 'register') {
-      const { data, error } = await supabase.auth.signUp({ email, password: pass })
+      // El trigger handle_new_user crea el profile automáticamente (security definer)
+      // No insertar manualmente para evitar race con RLS; pasamos nombre por user_metadata
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password: pass,
+        options: { data: { nombre: nombre.trim() } }
+      })
       if (error) return setMsg(error.message)
       if (data.user) {
-        const { error: pErr } = await supabase.from('profiles').insert({ id: data.user.id, email, nombre, rol: 'empleado' })
-        if (pErr) setMsg(pErr.message + ' — Si es “rate limit”, espera 1h o usa Add user en Supabase.')
-        else setMsg('¡Bienvenido a Aresa! Cuenta creada. Ya puedes entrar — tu jornada queda segura con foto y GPS.')
+        // Si confirm email está activo, Supabase exige verificar email; si no, ya hay sesión
+        if (data.session) nav('/')
+        else setMsg('¡Bienvenido a Aresa! Cuenta creada — revisa tu email para confirmar y luego entra. Tu jornada queda segura con foto y GPS.')
       }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password: pass })

@@ -42,8 +42,7 @@ export default function Solicitudes(){
         const { error } = await supabase.from('fichajes').update(update).eq('id', s.fichaje_id)
         if(error) throw error
       } else if(s.tipo==='creacion'){
-        // crear fichaje: necesita tipo? por defecto entrada si no hay fichaje_id, inferir por hora? usamos entrada
-        const tipo = 'entrada' // podría ser param, pero por ahora entrada
+        const tipo = (s as any).tipo_fichaje ?? 'entrada'
         const payload:any = {
           user_id: s.user_id,
           tipo,
@@ -93,7 +92,7 @@ export default function Solicitudes(){
             <div className="flex justify-between items-start gap-3">
               <div>
                 <div className="font-bold">{s.profiles?.nombre} <span className="text-xs text-gray-500">{s.profiles?.email}</span></div>
-                <div className="text-sm">{s.tipo==='creacion'?'Alta':'Modificación'} · {s.fecha_solicitada} {s.hora_solicitada.slice(0,5)} {s.geocercas ? `· ${s.geocercas.nombre} · ${s.geocercas.provincia}` : ''}</div>
+                <div className="text-sm">{s.tipo==='creacion'?'Alta':'Modificación'} · {((s as any).tipo_fichaje ?? (s.tipo==='creacion' ? 'entrada' : ''))} · {s.fecha_solicitada} {s.hora_solicitada.slice(0,5)} {s.geocercas ? `· ${s.geocercas.nombre} · ${s.geocercas.provincia}` : ''}</div>
                 <div className="text-xs text-gray-600">Motivo: {s.motivo}</div>
                 <div className="text-xs text-gray-400">Creada {new Date(s.created_at).toLocaleString()} {s.fichaje_id ? `· Fichaje ${s.fichaje_id.slice(0,8)}` : ''}</div>
                 {s.respuesta_admin && <div className="text-xs text-gray-600 mt-1">Respuesta: {s.respuesta_admin}</div>}
