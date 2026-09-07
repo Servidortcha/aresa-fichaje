@@ -9,6 +9,20 @@ if (!url || !anon) {
 
 export const supabase = createClient(url ?? '', anon ?? '')
 
+// Helper para bucket fichajes-fotos: soporta bucket público y privado (P1)
+// Si bucket es privado, getPublicUrl devuelve URL no válida; intentamos signedUrl con 1h
+export async function getFotoUrl(path: string): Promise<string> {
+  // intenta signed primero (funciona si bucket privado + RLS ok)
+  const { data: signed, error } = await supabase.storage.from('fichajes-fotos').createSignedUrl(path, 3600)
+  if (!error && signed?.signedUrl) return signed.signedUrl
+  const { data } = supabase.storage.from('fichajes-fotos').getPublicUrl(path)
+  return data.publicUrl
+}
+export function isFotoPath(urlOrPath: string | null): boolean {
+  if (!urlOrPath) return false
+  return !urlOrPath.startsWith('http')
+}
+
 export type Profile = {
   id: string
   email: string

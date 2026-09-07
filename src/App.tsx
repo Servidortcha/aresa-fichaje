@@ -1,17 +1,19 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { Suspense, lazy } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Empleado from './pages/Empleado'
-import Admin from './pages/Admin'
-import AdminLayout from './pages/admin/AdminLayout'
-import Dashboard from './pages/admin/Dashboard'
-import Sucursales from './pages/admin/Sucursales'
-import SucursalForm from './pages/admin/SucursalForm'
-import Fichajes from './pages/admin/Fichajes'
-import Solicitudes from './pages/admin/Solicitudes'
-import Usuarios from './pages/admin/Usuarios'
 import MisFichajes from './pages/MisFichajes'
+// Code-split: admin + leaflet + xlsx fuera del bundle inicial (P1)
+const Admin = lazy(() => import('./pages/Admin'))
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'))
+const Dashboard = lazy(() => import('./pages/admin/Dashboard'))
+const Sucursales = lazy(() => import('./pages/admin/Sucursales'))
+const SucursalForm = lazy(() => import('./pages/admin/SucursalForm'))
+const Fichajes = lazy(() => import('./pages/admin/Fichajes'))
+const Solicitudes = lazy(() => import('./pages/admin/Solicitudes'))
+const Usuarios = lazy(() => import('./pages/admin/Usuarios'))
 
 function Protected({ children, roles }: { children: React.ReactNode; roles?: ('admin' | 'empleado')[] }) {
   const { userId, profile, loading } = useAuth()
@@ -35,6 +37,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <Suspense fallback={<div className="p-10 text-center">Cargando...</div>}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Layout><HomeRedirect /></Layout>} />
@@ -53,6 +56,7 @@ export default function App() {
           {/* legacy single page */}
           <Route path="/admin-old" element={<Layout><Protected roles={['admin']}><Admin /></Protected></Layout>} />
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </AuthProvider>
   )

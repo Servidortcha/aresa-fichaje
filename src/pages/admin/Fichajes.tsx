@@ -3,7 +3,7 @@ import { supabase, type Fichaje, type Geocerca } from '../../lib/supabase'
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
-import * as XLSX from 'xlsx'
+// xlsx dinámico para code-split (ver exportExcel/exportPorSucursal/exportSimonetti)
 import { distanciaMetros } from '../../lib/geofence'
 
 const aresaStyle = {
@@ -62,11 +62,19 @@ export default function Fichajes(){
     }
     return true
   })
+  // Paginación cliente (P1): evita render 400 filas, 50 por página
+  const [page, setPage] = useState(1)
+  const perPage = 50
+  useEffect(()=>{ setPage(1) }, [filtroTipo, filtroEmpleado, filtroFecha, filtroSucursal, fichajes.length])
+  const totalPages = Math.max(1, Math.ceil(filtrados.length / perPage))
+  const paginados = filtrados.slice((page-1)*perPage, page*perPage)
 
-  const exportExcel=()=>{
-    const rows=filtrados.map(f=>{
+  const exportExcel= async ()=>{
+    const XLSX = await import('xlsx')
+    const safe=(v:any)=> typeof v==='string' && v.startsWith('=') ? `'${v}` : v
+    const rows=filtrados.slice(0,5000).map(f=>{
       const suc=f.geocerca_id ? sucMap.get(f.geocerca_id) : null
-      return { Fecha:new Date(f.created_at).toLocaleString(), Empleado:f.profiles?.nombre, Email:f.profiles?.email, Tipo:f.tipo, Sucursal:suc?.nombre ?? 'Fuera', Provincia:(suc as any)?.provincia ?? '', Lat:f.lat, Lng:f.lng, Direccion:f.direccion, Dentro:f.dentro_geocerca?'SI':'NO', Distancia_m:f.distancia_m, Foto:f.foto_url }
+      return { Fecha:new Date(f.created_at).toLocaleString(), Empleado:safe(f.profiles?.nombre), Email:safe(f.profiles?.email), Tipo:f.tipo, Sucursal:safe(suc?.nombre ?? 'Fuera'), Provincia:safe((suc as any)?.provincia ?? ''), Lat:f.lat, Lng:f.lng, Direccion:safe(f.direccion), Dentro:f.dentro_geocerca?'SI':'NO', Distancia_m:f.distancia_m, Foto:f.foto_url }
     })
     const ws=XLSX.utils.json_to_sheet(rows)
     // decorar header Aresa
@@ -86,7 +94,9 @@ export default function Fichajes(){
     }
     const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Fichajes'); XLSX.writeFile(wb, `Aresa_Fichajes_${new Date().toISOString().slice(0,10)}.xlsx`, {cellStyles:true} as any)
   }
-  const exportPorSucursal=()=>{
+  const exportPorSucursal= async ()=>{
+    const XLSX = await import('xlsx')
+    const safe=(v:any)=> typeof v==='string' && v.startsWith('=') ? `'${v}` : v
     const source = filtrados.length ? filtrados : fichajes
     const porSuc = new Map<string, typeof source>()
     for(const f of source){
@@ -98,7 +108,7 @@ export default function Fichajes(){
     for(const [suc, list] of porSuc){
       const rows=list.map(f=>{
         const s=f.geocerca_id ? sucMap.get(f.geocerca_id) : null
-        return { Fecha:new Date(f.created_at).toLocaleString(), Empleado:f.profiles?.nombre, Email:f.profiles?.email, Tipo:f.tipo, Sucursal:s?.nombre ?? 'Fuera', Provincia:(s as any)?.provincia ?? '', Lat:f.lat, Lng:f.lng, Direccion:f.direccion, Dentro:f.dentro_geocerca?'SI':'NO', Distancia_m:f.distancia_m, Foto:f.foto_url }
+        return { Fecha:new Date(f.created_at).toLocaleString(), Empleado:safe(f.profiles?.nombre), Email:safe(f.profiles?.email), Tipo:f.tipo, Sucursal:safe(s?.nombre ?? 'Fuera'), Provincia:safe((s as any)?.provincia ?? ''), Lat:f.lat, Lng:f.lng, Direccion:safe(f.direccion), Dentro:f.dentro_geocerca?'SI':'NO', Distancia_m:f.distancia_m, Foto:f.foto_url }
       })
       const ws=XLSX.utils.json_to_sheet(rows)
       ws['!cols']=[{wch:18},{wch:18},{wch:28},{wch:10},{wch:18},{wch:12},{wch:12},{wch:12},{wch:30},{wch:8},{wch:12},{wch:40}]
@@ -109,7 +119,7 @@ export default function Fichajes(){
     }
     const allRows=source.map(f=>{
       const s=f.geocerca_id ? sucMap.get(f.geocerca_id) : null
-      return { Fecha:new Date(f.created_at).toLocaleString(), Empleado:f.profiles?.nombre, Email:f.profiles?.email, Tipo:f.tipo, Sucursal:s?.nombre ?? 'Fuera', Provincia:(s as any)?.provincia ?? '', Lat:f.lat, Lng:f.lng, Direccion:f.direccion, Dentro:f.dentro_geocerca?'SI':'NO', Distancia_m:f.distancia_m, Foto:f.foto_url }
+      return { Fecha:new Date(f.created_at).toLocaleString(), Empleado:safe(f.profiles?.nombre), Email:safe(f.profiles?.email), Tipo:f.tipo, Sucursal:safe(s?.nombre ?? 'Fuera'), Provincia:safe((s as any)?.provincia ?? ''), Lat:f.lat, Lng:f.lng, Direccion:safe(f.direccion), Dentro:f.dentro_geocerca?'SI':'NO', Distancia_m:f.distancia_m, Foto:f.foto_url }
     })
     const wsAll=XLSX.utils.json_to_sheet(allRows)
     wsAll['!cols']=[{wch:18},{wch:18},{wch:28},{wch:10},{wch:18},{wch:12},{wch:12},{wch:12},{wch:30},{wch:8},{wch:12},{wch:40}]
@@ -120,6 +130,7 @@ export default function Fichajes(){
 
   const exportSimonetti = async()=>{
     try{
+      const XLSX = await import('xlsx')
       const [y,m]=exportMes.split('-').map(Number)
       const daysInMonth=new Date(y,m,0).getDate()
       const mesNombres=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
@@ -520,11 +531,18 @@ export default function Fichajes(){
       </div>
 
       <div className="bg-white rounded-xl shadow overflow-hidden">
+        <div className="flex justify-between items-center p-3 border-b bg-gray-50">
+          <span className="text-xs text-gray-600">Página {page} de {totalPages} · {filtrados.length} filtrados</span>
+          <div className="flex gap-2">
+            <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page<=1} className="px-3 py-1 border rounded text-xs bg-white disabled:opacity-50">← Anterior</button>
+            <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page>=totalPages} className="px-3 py-1 border rounded text-xs bg-white disabled:opacity-50">Siguiente →</button>
+          </div>
+        </div>
         <div className="overflow-auto max-h-[700px] -mx-3 sm:mx-0">
           <table className="w-full text-xs sm:text-sm min-w-[700px]">
             <thead className="bg-gray-50 sticky top-0"><tr><th className="p-2 text-left">Fecha</th><th className="p-2 text-left">Empleado</th><th className="p-2">Tipo</th><th className="p-2 text-left">Sucursal</th><th className="p-2">Ubicación</th><th className="p-2">Foto</th><th className="p-2">Acciones</th></tr></thead>
             <tbody>
-              {filtrados.map(f=>{
+              {paginados.map(f=>{
                 const suc=f.geocerca_id? sucMap.get(f.geocerca_id):null
                 return <tr key={f.id} className="border-t hover:bg-gray-50"><td className="p-2 whitespace-nowrap text-xs">{new Date(f.created_at).toLocaleString()}</td><td className="p-2"><div className="font-medium">{f.profiles?.nombre}</div><div className="text-xs text-gray-500">{f.profiles?.email}</div></td><td className="p-2 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${f.tipo==='entrada'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`}>{f.tipo}</span></td><td className="p-2 text-xs">{suc? <><b>{suc.nombre}</b><div className="text-gray-500">{f.dentro_geocerca?'✓ Dentro':`⚠ ${f.distancia_m}m fuera`}</div></>:<span className="text-red-600">Fuera</span>}</td><td className="p-2 text-xs"><a href={`https://www.google.com/maps?q=${f.lat},${f.lng}`} target="_blank" rel="noreferrer" className="text-blue-600 underline">{f.lat.toFixed(4)}, {f.lng.toFixed(4)}</a></td><td className="p-2">{f.foto_url? <a href={f.foto_url} target="_blank" rel="noreferrer"><img src={f.foto_url} className="w-12 h-12 object-cover rounded border"/></a>:'—'}</td><td className="p-2 flex gap-1"><button onClick={()=>openEdit(f)} className="px-2 py-1 border rounded text-xs bg-white">Editar</button><button onClick={()=>borrar(f.id)} className="px-2 py-1 bg-red-50 text-red-700 border border-red-200 rounded text-xs">Borrar</button></td></tr>
               })}

@@ -3,6 +3,12 @@ import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  build: {
+    chunkSizeWarningLimit: 600,
+    // xlsx y admin ya hacen code-split vía dynamic import() + React.lazy (P1)
+    // no se usa manualChunks object para compat rolldown; si quieres chunk vendor usa función:
+    // rollupOptions: { output: { manualChunks(id){ if(id.includes('node_modules/leaflet')) return 'leaflet' } }
+  },
   plugins: [
     react(),
     VitePWA({
