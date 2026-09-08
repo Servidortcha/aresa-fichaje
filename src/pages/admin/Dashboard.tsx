@@ -64,9 +64,9 @@ export default function Dashboard(){
         <div className="absolute inset-0 opacity-20" style={{ background: 'repeating-linear-gradient(90deg, #14C3B0 0 8px, transparent 8px 16px)' }}></div>
         <div className="relative flex justify-between items-start">
           <div>
-            <p className="text-white/70 text-sm">Bienvenido, {profile?.nombre ?? 'Admin'} · {new Date().toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long' })}</p>
+            <p className="text-white/70 text-sm">Hola, {profile?.nombre ?? 'Admin'} — {new Date().toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long' })}</p>
             <h1 className="text-3xl font-display font-bold mt-1">Aresa Fichaje</h1>
-            <p className="text-white/80 mt-1">Control en tiempo real de sucursales y fichajes</p>
+            <p className="text-white/80 mt-1">Todo tu equipo, a la vista y tranquilo</p>
           </div>
           <div className="hidden md:flex gap-2">
             <Link to="/admin/sucursales/nueva" className="bg-white text-[#163A5F] px-4 py-2 rounded-full font-semibold text-sm shadow hover:bg-paper">+ Nueva sucursal</Link>

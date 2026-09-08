@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { dentroDeGeocerca, reverseGeocode } from '../lib/geofence'
 import { isMockLocation, watermarkFoto, canFichar } from '../lib/security'
 import { enqueue, getQueue, dequeue } from '../lib/offlineQueue'
+import { celebrarFichaje } from '../lib/celebrate'
 
 type Tipo = 'entrada' | 'pausa_inicio' | 'pausa_fin' | 'salida'
 
@@ -208,8 +209,9 @@ export default function Empleado() {
       stopCamera()
       await loadHistorial()
       setView('home')
-      if (!dentro && sucursales.length>0) setMsg(`✓ ${tipo} registrado`)
-      else setMsg(`✓ ${tipo} registrado ✓`)
+      celebrarFichaje()
+      if (!dentro && sucursales.length>0) setMsg(`Registrado — fuera de geocerca (${distancia}m), igual queda asentado`)
+      else setMsg(`Listo — ${tipo} registrado a las ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`)
       refreshQueue()
     } catch (e: any) {
       // P3 offline queue: si falla por red, encola para reintento
@@ -271,33 +273,33 @@ export default function Empleado() {
             <>
               <div className="my-6 p-6 bg-gray-50 rounded-xl border-2 border-dashed">
                 <div className="text-5xl mb-3">🕐</div>
-                <p className="font-medium">Aún no iniciaste tu jornada</p>
-                <p className="text-sm text-gray-500">Pulsa para autenticar con cámara y ubicación</p>
+                <p className="font-medium">Buen día — ¿arrancamos?</p>
+                <p className="text-sm text-gray-500">Un toque y quedas registrado, con foto y ubicación</p>
               </div>
               <button onClick={() => iniciarFlujo('entrada')} className="w-full bg-ink hover:bg-[#1A2B4A] text-white text-xl font-bold py-5 rounded-xl shadow">
-                ▶ Iniciar jornada
+                Iniciar jornada
               </button>
-              <p className="text-xs text-gray-400 mt-2">Se tomará foto y GPS automáticamente</p>
+              <p className="text-xs text-gray-400 mt-2">Foto y GPS se toman en el momento</p>
             </>
           ) : jornada.trabajando ? (
             <>
               <div className="my-4 p-4 bg-green-50 border border-green-200 rounded-xl">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded-full text-sm font-bold animate-pulse">● Trabajando</div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded-full text-sm font-bold animate-pulse">● En curso</div>
                 <div className="text-5xl font-mono font-bold mt-3">{formatHoras(elapsedMs)}</div>
-                <div className="text-sm text-gray-600">Tiempo de esta jornada</div>
-                {jornada.inicioMs && <div className="text-xs text-gray-500">Inicio: {new Date(jornada.inicioMs).toLocaleTimeString()}</div>}
+                <div className="text-sm text-gray-600">Vas bien — tiempo de esta jornada</div>
+                {jornada.inicioMs && <div className="text-xs text-gray-500">Desde las {new Date(jornada.inicioMs).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>}
               </div>
-              <button onClick={() => iniciarFlujo('salida')} className="w-full bg-red-600 text-white py-4 rounded-xl font-bold">⏹ Finalizar jornada</button>
+              <button onClick={() => iniciarFlujo('salida')} className="w-full bg-ink hover:bg-black text-white py-4 rounded-xl font-bold">Finalizar jornada</button>
             </>
           ) : jornada.finalizada ? (
             <>
               <div className="my-4 p-4 bg-gray-100 border rounded-xl">
-                <div className="inline-flex px-3 py-1 bg-gray-800 text-white rounded-full text-sm font-bold">✓ Jornada finalizada</div>
+                <div className="inline-flex px-3 py-1 bg-gray-800 text-white rounded-full text-sm font-bold">Jornada completa</div>
                 <div className="text-5xl font-mono font-bold mt-3">{formatHoras(elapsedMs)}</div>
-                <div className="text-sm text-gray-600">Duración de esta jornada</div>
+                <div className="text-sm text-gray-600">Bien hecho hoy</div>
               </div>
-              <p className="text-sm text-gray-500 mb-3">Ya cerraste el día. Si necesitas reabrir, inicia una nueva entrada.</p>
-              <button onClick={() => iniciarFlujo('entrada')} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold">Iniciar nueva jornada</button>
+              <p className="text-sm text-gray-500 mb-3">Si necesitas volver a fichar, podés iniciar otra.</p>
+              <button onClick={() => iniciarFlujo('entrada')} className="w-full bg-white border border-line text-ink py-4 rounded-xl font-bold">Iniciar nueva jornada</button>
             </>
           ) : null}
 
@@ -306,8 +308,8 @@ export default function Empleado() {
         </div>
 
         <div className="bg-white p-4 rounded-xl shadow">
-          <h3 className="font-bold mb-3">Hoy · {historialHoy.length} fichajes</h3>
-          {historialHoy.length === 0 ? <p className="text-sm text-gray-500">Sin fichajes hoy</p> : (
+          <h3 className="font-bold mb-3">Hoy · {historialHoy.length} registros</h3>
+          {historialHoy.length === 0 ? <p className="text-sm text-gray-500">Todavía sin movimientos hoy — cuando fiches, aparece acá</p> : (
             <div className="space-y-2">
               {[...historialHoy].reverse().map(f=>(
                 <div key={f.id} className="flex gap-3 border rounded p-2 text-sm">
@@ -321,9 +323,9 @@ export default function Empleado() {
               ))}
             </div>
           )}
-          <Link to="/mis-fichajes" className="block text-center mt-4 w-full bg-white border py-2 rounded font-medium">Ver sección Fichajes con horas por día →</Link>
+          <Link to="/mis-fichajes" className="block text-center mt-4 w-full bg-white border py-2 rounded font-medium">Ver mis fichajes por día →</Link>
           <details className="mt-4">
-            <summary className="text-sm text-gray-600 cursor-pointer">Ver historial completo ({historial.length})</summary>
+            <summary className="text-sm text-gray-600 cursor-pointer">Historial reciente ({historial.length})</summary>
             <div className="space-y-2 mt-2">
               {historial.map(f=>(
                 <div key={f.id} className="flex gap-2 border rounded p-2 text-xs">

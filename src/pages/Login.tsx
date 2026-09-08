@@ -54,7 +54,7 @@ export default function Login() {
           <img src="/logo-horizontal.png" alt="Aresa" className="h-8 mx-auto bg-white rounded px-2 py-1" onError={(e)=>{ (e.target as HTMLImageElement).style.display='none'}} />
           <div className="w-12 h-12 bg-white text-[#163A5F] rounded-xl grid place-items-center mx-auto font-display font-bold text-xl mt-2">A</div>
           <h1 className="text-2xl font-display font-bold mt-3">Aresa Fichaje</h1>
-          <p className="text-white/80 text-sm">Tu jornada, en un toque — foto y ubicación verificadas, sin vueltas.</p>
+          <p className="text-white/80 text-sm">Hola de nuevo — tu jornada queda clara y tranquila, en un toque.</p>
         </div>
       </div>
 
@@ -81,8 +81,8 @@ export default function Login() {
         </form>
         {msg && <p className="mt-4 text-sm p-3 bg-amber-50 border border-amber-200 rounded-xl">{msg}</p>}
         <div className="mt-4 bg-gray-50 border rounded-xl p-3">
-          <p className="text-xs font-bold text-gray-700">🔒 Seguridad Aresa</p>
-          <p className="text-xs text-gray-500">Tu foto y ubicación se usan solo para verificar la jornada. No se permite galería — solo cámara en vivo — y la ubicación debe ser precisa. Sesión protegida y fichajes inmutables.</p>
+          <p className="text-xs font-bold text-gray-700">Tranquilo, es seguro</p>
+          <p className="text-xs text-gray-500">Usamos tu foto y ubicación solo para validar la jornada. Cámara en vivo, sin galería, y todo queda registrado para que estés cubierto.</p>
         </div>
         <p className="text-xs text-gray-400 mt-3 text-center">
           ¿Admin? Crea tu cuenta y luego: <code className="bg-gray-100 px-1 rounded">update profiles set rol='admin' where email='tu@email'</code>
