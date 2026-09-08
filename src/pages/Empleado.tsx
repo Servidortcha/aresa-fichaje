@@ -248,16 +248,38 @@ export default function Empleado() {
     setCoords(null)
     setDireccion(null)
     setView('fichar')
-    // GPS automático, cámara manual con botón
-    setTimeout(() => { getLocation() }, 300)
   }
 
   const fichar = async () => {
-    if (!coords) return setMsg('Primero obtene tu ubicación con el botón GPS')
-    if (!fotoPreview) return setMsg('Primero saca la foto con la cámara')
+    if (!coords) return setMsg('Obteniendo ubicación — esperá un segundo')
+    if (!fotoPreview) return setMsg('Primero sacá la foto')
     await persistirFichaje(ficharTipo, coords, fotoPreview)
   }
+  void fichar
 
+  // Auto-arranca cámara y GPS al entrar a fichar (no pide de nuevo si ya diste permiso)
+  useEffect(()=>{
+    if(view !== 'fichar') return
+    let cancelled = false
+    // intenta recordar permiso: si ya está granted, arranca sin interacción extra
+    const tryAuto = async()=>{
+      try{
+        // @ts-ignore permissions API puede no existir en iOS
+        const perm = await navigator.permissions?.query({ name: 'camera' as any })
+        if(perm?.state === 'granted' || localStorage.getItem('aresa_cam_ok')==='1'){
+          await startCamera()
+          if(cancelled) return
+        }
+      } catch {}
+      // GPS siempre auto
+      getLocation()
+      // si no arrancó auto, el usuario verá el botón Permitir
+    }
+    const t = setTimeout(tryAuto, 200)
+    return ()=>{ cancelled=true; clearTimeout(t) }
+  },[view])
+
+  useEffect(()=>{ if(stream) localStorage.setItem('aresa_cam_ok','1') },[stream])
   useEffect(()=>()=>{ stream?.getTracks().forEach(t => t.stop()) },[stream])
 
   // HOME VIEW
@@ -340,45 +362,57 @@ export default function Empleado() {
     )
   }
 
-  // FICHAR VIEW - autenticación con cámara + ubicación directa
+  // FICHAR VIEW - simple y sin fricción (PWA recuerda permisos)
   return (
-    <div className="max-w-xl mx-auto bg-white p-5 rounded-xl shadow space-y-4">
-      <div className="flex items-center gap-2">
-        <button onClick={()=>{ stopCamera(); setView('home') }} className="px-3 py-1 border rounded text-sm">← Volver</button>
-        <h2 className="text-xl font-bold flex-1 text-center">
-          {ficharTipo==='entrada' ? 'Iniciar jornada' : ficharTipo==='salida' ? 'Finalizar jornada' : ficharTipo==='pausa_inicio' ? 'Pausar' : 'Reanudar'} — Autenticación
-        </h2>
-      </div>
-      <p className="text-sm text-center text-gray-500">Abre la cámara para tomar la foto — el GPS se obtiene automáticamente y el registro queda al instante</p>
-
-      <div className="relative bg-black rounded overflow-hidden aspect-[4/3] grid place-items-center">
-        <video ref={videoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${!stream ? 'hidden' : ''}`} />
-        {!stream && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black">
-            <div className="text-white text-sm">Cámara apagada</div>
-            <button onClick={startCamera} className="px-6 py-3 bg-white text-black rounded-full font-bold shadow">📷 Abrir cámara</button>
-            <span className="text-white/60 text-xs">Se solicitará permiso</span>
-          </div>
-        )}
-        {stream && <button onClick={stopCamera} className="absolute top-2 right-2 text-xs bg-black/60 text-white px-2 py-1 rounded">Cerrar</button>}
-      </div>
-      <canvas ref={canvasRef} className="hidden" />
-      <button onClick={capturarFoto} disabled={!stream || !coords || enviando} className="w-full bg-amber-500 text-white py-3 rounded font-bold disabled:opacity-50 disabled:bg-gray-300 disabled:text-gray-500">
-        {enviando ? '⏳ Registrando...' : !stream ? 'Abre la cámara para continuar' : !coords ? 'Esperando GPS...' : '📸 Capturar foto y registrar automáticamente'}
-      </button>
-      {!coords && stream && <p className="text-xs text-center text-amber-600">{loadingLoc ? 'Obteniendo ubicación...' : 'GPS no disponible — '} <button onClick={getLocation} className="underline">Reintentar GPS</button></p>}
-      {fotoPreview && !enviando && <div><img src={fotoPreview} className="w-full rounded border" /><p className="text-xs text-blue-600 text-center">Procesando...</p></div>}
-
-
-
-      <div className="text-sm bg-gray-50 p-3 rounded border">
-        {coords ? <><div>📍 Ubicación obtenida ✓</div><div className="text-gray-600 text-xs">{direccion ?? '...'}</div></> : <span className="text-gray-500">Obteniendo ubicación automática...</span>}
+    <div className="max-w-xl mx-auto bg-white rounded-2xl shadow overflow-hidden">
+      <div className="p-4 flex items-center gap-3 border-b">
+        <button onClick={()=>{ stopCamera(); setView('home') }} className="w-9 h-9 grid place-items-center rounded-full border hover:bg-gray-50">←</button>
+        <div className="flex-1">
+          <h2 className="font-bold leading-none">{ficharTipo==='entrada' ? 'Iniciar jornada' : 'Finalizar jornada'}</h2>
+          <p className="text-xs text-gray-500">Foto y ubicación se toman juntas</p>
+        </div>
+        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${coords ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{coords ? 'GPS listo' : loadingLoc ? 'GPS...' : 'Sin GPS'}</span>
       </div>
 
-      <p className="text-xs text-center text-gray-500">Al sacar la foto queda registrado al instante — no necesitas confirmar.</p>
-      {msg && <div className="p-3 rounded border text-sm" style={{ background: msg.startsWith('✓') ? '#ecfdf5' : '#fef2f2' }}>{msg}</div>}
-      {/* fallback manual por si falla auto */}
-      <button onClick={fichar} disabled={enviando || !coords || !fotoPreview} className="w-full border text-gray-500 py-2 rounded text-xs hidden">Confirmar manual (fallback)</button>
+      <div className="p-4 space-y-4">
+        <div className="relative bg-black rounded-2xl overflow-hidden aspect-[4/3] grid place-items-center">
+          <video ref={videoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${!stream ? 'hidden' : ''}`} />
+          {!stream && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center">
+              <div className="w-16 h-16 rounded-full bg-white/10 grid place-items-center text-2xl">📷</div>
+              <div>
+                <div className="text-white font-medium">Cámara lista</div>
+                <div className="text-white/60 text-xs mt-1">Se recuerda el permiso — no vuelve a pedir</div>
+              </div>
+              <button onClick={startCamera} className="px-6 py-3 bg-white text-black rounded-full font-bold shadow">Permitir cámara</button>
+            </div>
+          )}
+          {stream && (
+            <>
+              <div className="absolute inset-0 pointer-events-none border-[3px] border-white/20 rounded-2xl" />
+              <div className="absolute inset-0 pointer-events-none grid place-items-center">
+                <div className="w-[68%] aspect-[3/4] rounded-full border-2 border-white/30" />
+              </div>
+            </>
+          )}
+        </div>
+        <canvas ref={canvasRef} className="hidden" />
+
+        {/* Estado GPS minimal */}
+        <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-xl border ${coords ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+          <span className="text-base">{coords ? '📍' : '◌'}</span>
+          <span className="flex-1 truncate text-xs">{coords ? (direccion ?? `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`) : loadingLoc ? 'Obteniendo ubicación...' : 'Esperando GPS — se activa solo'}</span>
+          {!coords && <button onClick={getLocation} className="text-xs underline shrink-0">Reintentar</button>}
+        </div>
+
+        <button onClick={capturarFoto} disabled={!stream || enviando} className="w-full bg-ink hover:bg-black text-white py-4 rounded-xl font-bold shadow disabled:opacity-40 disabled:cursor-not-allowed">
+          {enviando ? 'Registrando...' : fotoPreview ? 'Procesando...' : 'Tomar foto y registrar'}
+        </button>
+        <p className="text-xs text-center text-gray-500">{!stream ? 'Primero permití la cámara' : !coords ? 'Esperando GPS un segundo...' : 'Un solo toque — no hace falta confirmar'}</p>
+
+        {fotoPreview && <img src={fotoPreview} className="w-full rounded-xl border" />}
+        {msg && <div className="p-3 rounded-xl border text-sm" style={{ background: msg.startsWith('Listo') || msg.startsWith('Registrado') ? '#ecfdf5' : msg.startsWith('⚠') ? '#fffbeb' : '#fef2f2' }}>{msg}</div>}
+      </div>
     </div>
   )
 }
