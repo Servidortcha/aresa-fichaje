@@ -331,15 +331,14 @@ export default function Empleado() {
 
         <div className="bg-white p-4 rounded-xl shadow">
           <h3 className="font-bold mb-3">Hoy · {historialHoy.length} registros</h3>
-          {historialHoy.length === 0 ? <p className="text-sm text-gray-500">Todavía sin movimientos hoy — cuando fiches, aparece acá</p> : (
+            {historialHoy.length === 0 ? <p className="text-sm text-gray-500">Todavía sin movimientos hoy — cuando fiches, aparece acá</p> : (
             <div className="space-y-2">
               {[...historialHoy].reverse().map(f=>(
                 <div key={f.id} className="flex gap-3 border rounded p-2 text-sm">
-                  <img src={f.foto_url} className="w-12 h-12 object-cover rounded" />
-                  <div>
+                  <div className={`w-12 h-12 rounded-lg grid place-items-center text-white text-xs font-bold shrink-0 ${f.tipo==='entrada'?'bg-green-600':f.tipo==='salida'?'bg-red-600':'bg-amber-500'}`}>{f.tipo.slice(0,2).toUpperCase()}</div>
+                  <div className="min-w-0">
                     <div className="font-semibold">{f.tipo} · {new Date(f.created_at).toLocaleTimeString()}</div>
-                    <div className="text-xs text-gray-600">{f.direccion}</div>
-
+                    <div className="text-xs text-gray-600 truncate">{f.direccion}</div>
                   </div>
                 </div>
               ))}
@@ -351,8 +350,8 @@ export default function Empleado() {
             <div className="space-y-2 mt-2">
               {historial.map(f=>(
                 <div key={f.id} className="flex gap-2 border rounded p-2 text-xs">
-                  <img src={f.foto_url} className="w-10 h-10 object-cover rounded" />
-                  <div><div className="font-semibold">{f.tipo} · {new Date(f.created_at).toLocaleString()}</div><div className="text-gray-600 truncate max-w-[200px]">{f.direccion}</div></div>
+                  <div className={`w-10 h-10 rounded-lg grid place-items-center text-white text-[10px] font-bold shrink-0 ${f.tipo==='entrada'?'bg-green-600':f.tipo==='salida'?'bg-red-600':'bg-amber-500'}`}>{f.tipo.slice(0,2).toUpperCase()}</div>
+                  <div className="min-w-0"><div className="font-semibold">{f.tipo} · {new Date(f.created_at).toLocaleString()}</div><div className="text-gray-600 truncate max-w-[200px]">{f.direccion}</div></div>
                 </div>
               ))}
             </div>

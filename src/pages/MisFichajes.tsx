@@ -228,8 +228,8 @@ export default function MisFichajes(){
           <div className="divide-y">
             {list.map(f=>(
               <div key={f.id} className="flex gap-3 p-3 items-center">
-                <img src={f.foto_url ?? ''} className="w-14 h-14 object-cover rounded border bg-gray-100" alt="" />
-                <div className="flex-1">
+                <div className={`w-14 h-14 rounded-lg grid place-items-center text-white text-xs font-bold shrink-0 ${f.tipo==='entrada'?'bg-green-600':f.tipo==='salida'?'bg-red-600':'bg-amber-500'}`}>{f.tipo.slice(0,2).toUpperCase()}</div>
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-1 rounded text-xs font-bold ${f.tipo==='entrada'?'bg-green-100 text-green-700':f.tipo==='salida'?'bg-red-100 text-red-700':'bg-yellow-100 text-yellow-800'}`}>{f.tipo}</span>
                     <span className="text-sm font-mono">{new Date(f.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
