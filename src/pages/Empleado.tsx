@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { supabase, type Geocerca, getFotoUrl } from '../lib/supabase'
+import { supabase, type Geocerca } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { dentroDeGeocerca, reverseGeocode } from '../lib/geofence'
 import { isMockLocation, watermarkFoto, canFichar } from '../lib/security'
@@ -103,8 +103,7 @@ export default function Empleado() {
         const path = `${item.user_id}/${Date.now()}-${item.id.slice(0,4)}.jpg`
         const { error: upErr } = await supabase.storage.from('fichajes-fotos').upload(path, blob, { contentType:'image/jpeg', upsert:false })
         if(upErr) throw upErr
-        let foto_url: string
-        try{ foto_url = await getFotoUrl(path) } catch{ const { data: pub } = supabase.storage.from('fichajes-fotos').getPublicUrl(path); foto_url = pub.publicUrl }
+        const foto_url: string = path
         const { error } = await supabase.from('fichajes').insert({
           user_id: item.user_id, tipo: item.tipo as any, lat:item.lat, lng:item.lng, direccion:item.direccion, foto_url, dentro_geocerca:item.dentro_geocerca, geocerca_id:item.geocerca_id, distancia_m:item.distancia_m, created_at: item.created_at
         })
@@ -197,9 +196,8 @@ export default function Empleado() {
       const path = `${userId}/${Date.now()}.jpg`
       const { error: upErr } = await supabase.storage.from('fichajes-fotos').upload(path, blob, { contentType: 'image/jpeg', upsert: false })
       if (upErr) throw upErr
-      // Soporta bucket público (getPublicUrl) y privado (createSignedUrl) - P1
-      let foto_url: string
-      try { foto_url = await getFotoUrl(path) } catch { const { data: pub } = supabase.storage.from('fichajes-fotos').getPublicUrl(path); foto_url = pub.publicUrl }
+      // Guarda solo el path para que la foto no expire (se genera URL fresca al mostrar) - fix InvalidJWT
+      const foto_url: string = path
       // dentro/distancia se recalculan server-side por trigger validar_fichaje, pero enviamos para UX inmediata
       const { error } = await supabase.from('fichajes').insert({
         user_id: userId, tipo, lat: curCoords.lat, lng: curCoords.lng, direccion, foto_url, dentro_geocerca: dentro, geocerca_id, distancia_m: distancia,

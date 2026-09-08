@@ -3,8 +3,9 @@ import { supabase, type Fichaje, type Geocerca } from '../../lib/supabase'
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
-// xlsx dinámico para code-split (ver exportExcel/exportPorSucursal/exportSimonetti)
 import { distanciaMetros } from '../../lib/geofence'
+import { FotoFichaje } from '../../components/FotoFichaje'
+import { getFotoDisplayUrl } from '../../lib/supabase'
 
 delete (L.Icon.Default.prototype as any)._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -302,7 +303,7 @@ export default function Fichajes(){
             {/* Pareja si existe */}
             {pareja ? (
               <div className="border rounded-xl p-4 space-y-3 bg-white">
-                <div className="flex items-center gap-2"><span className={`px-2 py-1 rounded text-xs font-bold ${parejaForm.tipo==='entrada'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`}>{parejaForm.tipo}</span><span className="text-sm font-semibold">Pareja del mismo día</span><span className="text-xs text-gray-500">{pareja.id.slice(0,8)} · {new Date(pareja.created_at).toLocaleDateString()}</span>{pareja.foto_url && <a href={pareja.foto_url} target="_blank" rel="noreferrer" className="ml-auto"><img src={pareja.foto_url} className="w-10 h-10 object-cover rounded border" /></a>}<button onClick={()=>{ const tmp=editing; const tmpForm=editForm; setEditing(pareja); setEditForm(parejaForm); setPareja(tmp); setParejaForm(tmpForm)}} className="ml-2 text-xs border px-2 py-1 rounded">Intercambiar</button></div>
+                <div className="flex items-center gap-2"><span className={`px-2 py-1 rounded text-xs font-bold ${parejaForm.tipo==='entrada'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`}>{parejaForm.tipo}</span><span className="text-sm font-semibold">Pareja del mismo día</span><span className="text-xs text-gray-500">{pareja.id.slice(0,8)} · {new Date(pareja.created_at).toLocaleDateString()}</span>{pareja.foto_url && <a onClick={async(e)=>{ e.preventDefault(); const url=await getFotoDisplayUrl(pareja.foto_url); if(url) window.open(url,'_blank') }} href="#" className="ml-auto"><FotoFichaje fotoUrl={pareja.foto_url} className="w-10 h-10 object-cover rounded border" /></a>}<button onClick={()=>{ const tmp=editing; const tmpForm=editForm; setEditing(pareja); setEditForm(parejaForm); setPareja(tmp); setParejaForm(tmpForm)}} className="ml-2 text-xs border px-2 py-1 rounded">Intercambiar</button></div>
                 <select value={parejaForm.tipo} onChange={e=>setParejaForm({...parejaForm, tipo:e.target.value as any})} className="w-full border rounded px-3 py-2">
                   <option value="entrada">Entrada</option><option value="salida">Salida</option>
                 </select>
@@ -334,7 +335,7 @@ export default function Fichajes(){
           <MapContainer center={center} zoom={sucursales.length?6:5} style={{height:'100%',width:'100%'}}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
             {sucursales.map(s=> <Circle key={s.id} center={[s.lat,s.lng]} radius={s.radio_m} pathOptions={{ color:'#9ca3af', fillOpacity:0.08 }}><Popup>{s.nombre} · {s.radio_m} m</Popup></Circle>)}
-            {filtrados.slice(0,100).map(f=> <Marker key={f.id} position={[f.lat,f.lng]}><Popup><b>{f.profiles?.nombre}</b> - {f.tipo}<br/>{new Date(f.created_at).toLocaleString()}<br/>{f.direccion}<br/><a href={f.foto_url??'#'} target="_blank" rel="noreferrer">Ver foto</a></Popup></Marker>)}
+            {filtrados.slice(0,100).map(f=> <Marker key={f.id} position={[f.lat,f.lng]}><Popup><b>{f.profiles?.nombre}</b> - {f.tipo}<br/>{new Date(f.created_at).toLocaleString()}<br/>{f.direccion}<br/><a onClick={async(e)=>{ e.preventDefault(); const url=await getFotoDisplayUrl(f.foto_url); if(url) window.open(url,'_blank') }} href="#" >Ver foto</a></Popup></Marker>)}
           </MapContainer>
         </div>
       </div>
@@ -353,7 +354,7 @@ export default function Fichajes(){
             <tbody>
               {paginados.map(f=>{
                 const suc=f.geocerca_id? sucMap.get(f.geocerca_id):null
-                return <tr key={f.id} className="border-t hover:bg-gray-50"><td className="p-2 whitespace-nowrap text-xs">{new Date(f.created_at).toLocaleString()}</td><td className="p-2"><div className="font-medium">{f.profiles?.nombre}</div><div className="text-xs text-gray-500">{f.profiles?.email}</div></td><td className="p-2 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${f.tipo==='entrada'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`}>{f.tipo}</span></td><td className="p-2 text-xs">{suc? <><b>{suc.nombre}</b><div className="text-gray-500">{f.dentro_geocerca?'✓ Dentro':`⚠ ${f.distancia_m}m fuera`}</div></>:<span className="text-red-600">Fuera</span>}</td><td className="p-2 text-xs"><a href={`https://www.google.com/maps?q=${f.lat},${f.lng}`} target="_blank" rel="noreferrer" className="text-blue-600 underline">{f.lat.toFixed(4)}, {f.lng.toFixed(4)}</a></td><td className="p-2">{f.foto_url? <a href={f.foto_url} target="_blank" rel="noreferrer"><img src={f.foto_url} className="w-12 h-12 object-cover rounded border"/></a>:'—'}</td><td className="p-2 flex gap-1"><button onClick={()=>openEdit(f)} className="px-2 py-1 border rounded text-xs bg-white">Editar</button><button onClick={()=>borrar(f.id)} className="px-2 py-1 bg-red-50 text-red-700 border border-red-200 rounded text-xs">Borrar</button></td></tr>
+                return <tr key={f.id} className="border-t hover:bg-gray-50"><td className="p-2 whitespace-nowrap text-xs">{new Date(f.created_at).toLocaleString()}</td><td className="p-2"><div className="font-medium">{f.profiles?.nombre}</div><div className="text-xs text-gray-500">{f.profiles?.email}</div></td><td className="p-2 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${f.tipo==='entrada'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`}>{f.tipo}</span></td><td className="p-2 text-xs">{suc? <><b>{suc.nombre}</b><div className="text-gray-500">{f.dentro_geocerca?'✓ Dentro':`⚠ ${f.distancia_m}m fuera`}</div></>:<span className="text-red-600">Fuera</span>}</td><td className="p-2 text-xs"><a href={`https://www.google.com/maps?q=${f.lat},${f.lng}`} target="_blank" rel="noreferrer" className="text-blue-600 underline">{f.lat.toFixed(4)}, {f.lng.toFixed(4)}</a></td><td className="p-2">{f.foto_url? <a onClick={async(e)=>{ e.preventDefault(); const url=await getFotoDisplayUrl(f.foto_url); if(url) window.open(url,'_blank') }} href="#"><FotoFichaje fotoUrl={f.foto_url} className="w-12 h-12 object-cover rounded border cursor-pointer" /></a>:'—'}</td><td className="p-2 flex gap-1"><button onClick={()=>openEdit(f)} className="px-2 py-1 border rounded text-xs bg-white">Editar</button><button onClick={()=>borrar(f.id)} className="px-2 py-1 bg-red-50 text-red-700 border border-red-200 rounded text-xs">Borrar</button></td></tr>
               })}
             </tbody>
           </table>

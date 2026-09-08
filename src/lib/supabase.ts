@@ -17,9 +17,8 @@ export const supabase = createClient(url ?? '', anon ?? '', {
 })
 
 // Helper para bucket fichajes-fotos: soporta bucket público y privado (P1)
-// Si bucket es privado, getPublicUrl devuelve URL no válida; intentamos signedUrl con 1h
+// Guarda solo el path (ej: uid/timestamp.jpg) en foto_url; genera URL fresca al mostrar para no expirar
 export async function getFotoUrl(path: string): Promise<string> {
-  // intenta signed primero (funciona si bucket privado + RLS ok)
   const { data: signed, error } = await supabase.storage.from('fichajes-fotos').createSignedUrl(path, 3600)
   if (!error && signed?.signedUrl) return signed.signedUrl
   const { data } = supabase.storage.from('fichajes-fotos').getPublicUrl(path)
@@ -28,6 +27,31 @@ export async function getFotoUrl(path: string): Promise<string> {
 export function isFotoPath(urlOrPath: string | null): boolean {
   if (!urlOrPath) return false
   return !urlOrPath.startsWith('http')
+}
+// Extrae path del foto_url guardado (puede ser path puro, public URL o signed URL expirada)
+export function extraerPathFoto(stored: string | null): string | null {
+  if (!stored) return null
+  // si ya es path puro (uid/xxx.jpg)
+  if (!stored.startsWith('http')) return stored
+  try {
+    const u = new URL(stored)
+    // formatos: /storage/v1/object/public/fichajes-fotos/<path>  o  /object/sign/.../token
+    // o  /storage/v1/object/sign/fichajes-fotos/<path>?token=...
+    const idx = u.pathname.indexOf('/fichajes-fotos/')
+    if (idx !== -1) {
+      let p = u.pathname.slice(idx + '/fichajes-fotos/'.length)
+      // quita query token si viene en pathname (sign)
+      p = decodeURIComponent(p.split('?')[0])
+      return p || null
+    }
+  } catch {}
+  return null
+}
+export async function getFotoDisplayUrl(stored: string | null): Promise<string | null> {
+  if (!stored) return null
+  const path = extraerPathFoto(stored)
+  if (!path) return stored // si no se pudo extraer, devuelve original (puede ser public URL válida)
+  return await getFotoUrl(path)
 }
 
 export type Profile = {
