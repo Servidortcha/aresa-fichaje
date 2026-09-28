@@ -50,7 +50,7 @@ export default function Login() {
     <div className="max-w-md mx-auto mt-8 relative">
       <div className="bg-gradient-to-br from-[#163A5F] to-[#2E6F9E] rounded-2xl p-6 text-white text-center shadow relative overflow-hidden">
         <div className="relative">
-          <img src="/logo-horizontal.png" alt="Aresa" className="h-8 mx-auto bg-white rounded px-2 py-1" onError={(e)=>{ (e.target as HTMLImageElement).style.display='none'}} />
+          <img src="/logo-blanco.png" alt="Aresa" className="h-10 mx-auto" onError={(e)=>{ (e.target as HTMLImageElement).style.display='none'}} />
           <h1 className="text-2xl font-display font-bold mt-3">Aresa Fichaje</h1>
           <p className="text-white/80 text-sm">Hola de nuevo</p>
         </div>

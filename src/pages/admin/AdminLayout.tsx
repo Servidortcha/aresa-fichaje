@@ -39,8 +39,8 @@ export default function AdminLayout(){
         lg:left-auto
       `}>
         <div className="p-4 border-b border-line bg-gradient-to-br from-ink to-[#2E6F9E] text-white shrink-0">
-          <div className="font-display font-bold text-lg leading-none">Aresa Fichaje</div>
-          <div className="text-white/70 text-xs mt-1">Panel admin</div>
+          <img src="/logo-blanco.png" alt="Aresa" className="h-7 w-auto" onError={(e)=>{ (e.target as HTMLImageElement).style.display='none'}} />
+          <div className="text-white/70 text-xs mt-2">Panel admin</div>
         </div>
         <nav className="flex-1 p-3 space-y-1.5 overflow-auto">
           {nav.map(n=>{

@@ -21,14 +21,27 @@ export async function generarPdfUsuario(u: UsuarioPdf) {
   doc.setFillColor(20, 195, 176)
   for (let x = 0; x < W; x += 18) doc.rect(x, 33, 10, 2, 'F')
 
-  // Título
+  // Logo blanco (fallback a texto si no carga)
+  try {
+    const logoRes = await fetch('/logo-blanco.png')
+    const logoBlob = await logoRes.blob()
+    const logoDataUrl: string = await new Promise((resolve, reject) => {
+      const r = new FileReader()
+      r.onload = () => resolve(r.result as string)
+      r.onerror = reject
+      r.readAsDataURL(logoBlob)
+    })
+    doc.addImage(logoDataUrl, 'PNG', 14, 8, 42, 11.5)
+  } catch {
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(22)
+    doc.text('ARESA', 14, 16)
+  }
   doc.setTextColor(255, 255, 255)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(22)
-  doc.text('ARESA', 14, 16)
   doc.setFontSize(11)
   doc.setFont('helvetica', 'normal')
-  doc.text('Fichaje - Tu jornada, en un toque', 14, 22)
+  doc.text('Fichaje - Tu jornada, en un toque', 14, 24)
   doc.setFontSize(8)
   doc.setTextColor(200, 220, 235)
   doc.text('Foto y ubicacion verificadas - Sistema seguro', 14, 28)
