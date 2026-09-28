@@ -371,8 +371,8 @@ export default function Empleado() {
         <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${coords ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{coords ? 'GPS listo' : loadingLoc ? 'GPS...' : 'Sin GPS'}</span>
       </div>
 
-      <div className="p-4 space-y-4">
-        <div className="relative bg-black rounded-2xl overflow-hidden aspect-[4/3] grid place-items-center">
+      <div className="p-3 space-y-3">
+        <div className="relative bg-black rounded-2xl overflow-hidden aspect-[3/4] max-h-[62vh] w-full grid place-items-center">
           <video ref={videoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${!stream ? 'hidden' : ''}`} />
           {!stream && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center">
