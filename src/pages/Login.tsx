@@ -49,12 +49,10 @@ export default function Login() {
   return (
     <div className="max-w-md mx-auto mt-8 relative">
       <div className="bg-gradient-to-br from-[#163A5F] to-[#2E6F9E] rounded-2xl p-6 text-white text-center shadow relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10" style={{ background: 'repeating-linear-gradient(90deg, #14C3B0 0 12px, transparent 12px 24px)' }}></div>
         <div className="relative">
           <img src="/logo-horizontal.png" alt="Aresa" className="h-8 mx-auto bg-white rounded px-2 py-1" onError={(e)=>{ (e.target as HTMLImageElement).style.display='none'}} />
-          <div className="w-12 h-12 bg-white text-[#163A5F] rounded-xl grid place-items-center mx-auto font-display font-bold text-xl mt-2">A</div>
           <h1 className="text-2xl font-display font-bold mt-3">Aresa Fichaje</h1>
-          <p className="text-white/80 text-sm">Hola de nuevo — tu jornada queda clara y tranquila, en un toque.</p>
+          <p className="text-white/80 text-sm">Hola de nuevo</p>
         </div>
       </div>
 
@@ -80,13 +78,6 @@ export default function Login() {
           </button>
         </form>
         {msg && <p className="mt-4 text-sm p-3 bg-amber-50 border border-amber-200 rounded-xl">{msg}</p>}
-        <div className="mt-4 bg-gray-50 border rounded-xl p-3">
-          <p className="text-xs font-bold text-gray-700">Tranquilo, es seguro</p>
-          <p className="text-xs text-gray-500">Usamos tu foto y ubicación solo para validar la jornada. Cámara en vivo, sin galería, y todo queda registrado para que estés cubierto.</p>
-        </div>
-        <p className="text-xs text-gray-400 mt-3 text-center">
-          ¿Admin? Crea tu cuenta y luego: <code className="bg-gray-100 px-1 rounded">update profiles set rol='admin' where email='tu@email'</code>
-        </p>
       </div>
     </div>
   )
