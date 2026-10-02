@@ -13,6 +13,7 @@ const Dashboard = lazy(() => import('./pages/admin/Dashboard'))
 const Sucursales = lazy(() => import('./pages/admin/Sucursales'))
 const SucursalForm = lazy(() => import('./pages/admin/SucursalForm'))
 const Fichajes = lazy(() => import('./pages/admin/Fichajes'))
+const Horas = lazy(() => import('./pages/admin/Horas'))
 const Solicitudes = lazy(() => import('./pages/admin/Solicitudes'))
 const Usuarios = lazy(() => import('./pages/admin/Usuarios'))
 
@@ -53,6 +54,7 @@ export default function App() {
             <Route path="sucursales/nueva" element={<SucursalForm />} />
             <Route path="sucursales/:id" element={<SucursalForm />} />
             <Route path="fichajes" element={<Fichajes />} />
+            <Route path="horas" element={<Horas />} />
             <Route path="solicitudes" element={<Solicitudes />} />
             <Route path="usuarios" element={<Usuarios />} />
           </Route>

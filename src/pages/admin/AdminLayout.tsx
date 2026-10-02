@@ -6,6 +6,7 @@ const nav = [
   { to: '/admin/sucursales', label: 'Sucursales', icon: '⌖' },
   { to: '/admin/sucursales/nueva', label: 'Nueva Sucursal', icon: '+', primary: true },
   { to: '/admin/fichajes', label: 'Fichajes', icon: '☷' },
+  { to: '/admin/horas', label: 'Horas', icon: '◷' },
   { to: '/admin/solicitudes', label: 'Solicitudes', icon: '✉' },
   { to: '/admin/usuarios', label: 'Usuarios', icon: '◐' },
 ]
