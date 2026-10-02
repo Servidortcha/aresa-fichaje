@@ -6,6 +6,7 @@ import L from 'leaflet'
 import { distanciaMetros } from '../../lib/geofence'
 import { FotoFichaje } from '../../components/FotoFichaje'
 import { getFotoDisplayUrl } from '../../lib/supabase'
+import { parseFichajesExcel, descargarPlantillaImportacion, type ImportPreview } from '../../lib/excelImport'
 
 delete (L.Icon.Default.prototype as any)._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -30,6 +31,10 @@ export default function Fichajes(){
   const [parejaForm, setParejaForm] = useState({ tipo:'salida' as Fichaje['tipo'], sucursal_id:'', fecha:'', hora:'' })
   const [showManual, setShowManual] = useState(false)
   const [manual, setManual] = useState({ user_id:'', tipo:'entrada' as Fichaje['tipo'], sucursal_id:'', fecha:'', hora:'' })
+  const [showImport, setShowImport] = useState(false)
+  const [preview, setPreview] = useState<ImportPreview | null>(null)
+  const [importFile, setImportFile] = useState('')
+  const [importing, setImporting] = useState(false)
   const [msg, setMsg] = useState<string|null>(null)
   const [exportMes, setExportMes] = useState(new Date().toISOString().slice(0,7))
 
@@ -219,6 +224,38 @@ export default function Fichajes(){
     if(error) alert(error.message); else load()
   }
 
+  const onArchivoImport = async(file: File | undefined)=>{
+    if(!file) return
+    setImportFile(file.name); setMsg(null)
+    try{
+      const buf = await file.arrayBuffer()
+      const res = await parseFichajesExcel(buf, usuarios as any, sucursales as any)
+      setPreview(res)
+      if(res.total===0) setMsg('El archivo no tiene filas para importar (revisá el encabezado: Email, Fecha, Hora, Tipo, Sucursal)')
+    }catch(e:any){ setPreview(null); setMsg('Error al leer Excel: '+e.message) }
+  }
+
+  const confirmarImportacion = async()=>{
+    if(!preview || !preview.valid.length) return
+    if(!confirm(`¿Importar ${preview.valid.length} fichajes? Las filas con error (${preview.errors.length}) se omiten.`)) return
+    setImporting(true)
+    try{
+      let ok = 0
+      for(let i=0; i<preview.valid.length; i+=200){
+        const chunk = preview.valid.slice(i, i+200).map(v=>({
+          user_id: v.user_id, tipo: v.tipo, lat: v.lat, lng: v.lng, direccion: v.direccion,
+          foto_url: null, dentro_geocerca: true, geocerca_id: v.sucursal_id, distancia_m: 0, created_at: v.created_at,
+        }))
+        const { error } = await supabase.from('fichajes').insert(chunk as any)
+        if(error) throw error
+        ok += chunk.length
+      }
+      setMsg(`Importados ${ok} fichajes ✓${preview.errors.length ? ` (${preview.errors.length} con error omitidos)` : ''}`)
+      setPreview(null); setShowImport(false); load()
+    }catch(e:any){ setMsg('Error al importar: '+e.message) }
+    finally{ setImporting(false) }
+  }
+
   const center:[number,number]=sucursales[0]?[sucursales[0].lat,sucursales[0].lng]:filtrados[0]?[filtrados[0].lat,filtrados[0].lng]:[-32.2426,-63.542]
   return (
     <div className="space-y-4">
@@ -239,6 +276,7 @@ export default function Fichajes(){
             <button onClick={exportExcel} className="flex-1 lg:flex-none bg-green-600 text-white px-4 py-2 rounded text-sm">Exportar (filtro)</button>
             <button onClick={exportPorSucursal} className="flex-1 lg:flex-none bg-amber text-white px-4 py-2 rounded text-sm">Por sucursal</button>
             <button onClick={()=>setShowManual(v=>!v)} className="flex-1 lg:flex-none bg-ink text-paper px-4 py-2 rounded text-sm">+ Manual</button>
+            <button onClick={()=>{ setShowImport(v=>!v); setPreview(null) }} className="flex-1 lg:flex-none bg-steel text-white px-4 py-2 rounded text-sm">Importar Excel</button>
           </div>
           <div className="flex gap-2 w-full lg:w-auto items-center">
             <input type="month" value={exportMes} onChange={e=>setExportMes(e.target.value)} className="border rounded px-2 py-1 text-sm" />
@@ -274,6 +312,54 @@ export default function Fichajes(){
             <button onClick={()=>setShowManual(false)} className="border px-4 py-2 rounded">Cancelar</button>
           </div>
           <p className="text-xs text-gray-500">Se guardará con coordenadas de la sucursal y marcado como dentro. Si no ejecutaste la migración RLS, te dará error — corre <code>supabase_migracion_admin_fichajes.sql</code>.</p>
+        </div>
+      )}
+
+      {showImport && (
+        <div className="bg-white p-4 rounded-xl shadow space-y-3">
+          <h3 className="font-bold">Importar fichajes desde Excel</h3>
+          <p className="text-xs text-gray-500">Columnas: Email · Fecha · Hora · Tipo (entrada/salida) · Sucursal (nombre exacto). Primero descargá la plantilla.</p>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={()=>descargarPlantillaImportacion(sucursales as any)} className="px-4 py-2 border rounded text-sm bg-white">Descargar plantilla</button>
+            <label className="px-4 py-2 bg-steel text-white rounded text-sm cursor-pointer">
+              Elegir archivo .xlsx
+              <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e=>onArchivoImport(e.target.files?.[0])} />
+            </label>
+            {importFile && <span className="text-xs text-gray-600 self-center">{importFile}</span>}
+          </div>
+          {preview && (
+            <div className="space-y-2">
+              <div className="flex gap-2 text-xs">
+                <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full font-bold">{preview.valid.length} listos</span>
+                <span className={`px-2 py-1 rounded-full font-bold ${preview.errors.length ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>{preview.errors.length} con error</span>
+              </div>
+              {preview.errors.length>0 && (
+                <div className="max-h-[180px] overflow-auto border border-red-200 rounded text-xs">
+                  {preview.errors.slice(0,50).map((e,i)=>(
+                    <div key={i} className="p-2 border-b last:border-0 bg-red-50"><b>Fila {e.line}:</b> {e.error}<div className="text-gray-500 truncate">{e.raw}</div></div>
+                  ))}
+                  {preview.errors.length>50 && <div className="p-2 text-gray-500">…y {preview.errors.length-50} más</div>}
+                </div>
+              )}
+              {preview.valid.length>0 && (
+                <div className="max-h-[220px] overflow-auto border rounded text-xs">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 sticky top-0"><tr><th className="p-1 text-left">Fila</th><th className="p-1 text-left">Empleado</th><th className="p-1 text-left">Fecha/hora</th><th className="p-1">Tipo</th><th className="p-1 text-left">Sucursal</th></tr></thead>
+                    <tbody>
+                      {preview.valid.slice(0,50).map(v=>(
+                        <tr key={v.line} className="border-t"><td className="p-1">{v.line}</td><td className="p-1">{v.nombre}</td><td className="p-1 whitespace-nowrap">{new Date(v.created_at).toLocaleString()}</td><td className="p-1 text-center">{v.tipo}</td><td className="p-1">{v.sucursal}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {preview.valid.length>50 && <div className="p-2 text-gray-500 text-xs">…y {preview.valid.length-50} más</div>}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button onClick={confirmarImportacion} disabled={importing || !preview.valid.length} className="bg-green-600 text-white px-6 py-2 rounded font-bold text-sm disabled:opacity-50">{importing ? 'Importando...' : `Confirmar importación (${preview.valid.length})`}</button>
+                <button onClick={()=>{ setShowImport(false); setPreview(null) }} className="border px-4 py-2 rounded text-sm">Cancelar</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
