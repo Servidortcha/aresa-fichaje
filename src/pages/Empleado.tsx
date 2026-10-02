@@ -47,6 +47,31 @@ function formatHoras(ms: number) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} hs`
 }
 
+// Reloj con la hora real (manecillas según `when`)
+function RelojAresa({ when }: { when: number }) {
+  const d = new Date(when)
+  const m = d.getMinutes() + d.getSeconds() / 60
+  const h = (d.getHours() % 12) + m / 60
+  const hand = (ang: number, len: number, w: number, color: string) => {
+    const r = ((ang - 90) * Math.PI) / 180
+    return <line x1={48} y1={48} x2={48 + len * Math.cos(r)} y2={48 + len * Math.sin(r)} stroke={color} strokeWidth={w} strokeLinecap="round" />
+  }
+  return (
+    <svg viewBox="0 0 96 96" className="w-24 h-24 mx-auto drop-shadow-lg">
+      <circle cx={48} cy={48} r={45} fill="rgba(255,255,255,0.14)" />
+      <circle cx={48} cy={48} r={37} fill="#ffffff" />
+      {Array.from({ length: 12 }).map((_, i) => {
+        const a = (i * 30 * Math.PI) / 180
+        const inner = i % 3 === 0 ? 26 : 28.5
+        return <line key={i} x1={48 + 31 * Math.cos(a)} y1={48 + 31 * Math.sin(a)} x2={48 + inner * Math.cos(a)} y2={48 + inner * Math.sin(a)} stroke={i % 3 === 0 ? '#203575' : '#94A3B8'} strokeWidth={i % 3 === 0 ? 2.5 : 1.5} strokeLinecap="round" />
+      })}
+      {hand((h / 12) * 360, 18, 4, '#203575')}
+      {hand((m / 60) * 360, 26, 3, '#2E6F9E')}
+      <circle cx={48} cy={48} r={3.5} fill="#F4791E" />
+    </svg>
+  )
+}
+
 export default function Empleado() {
   const { userId } = useAuth()
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -283,73 +308,82 @@ export default function Empleado() {
   // HOME VIEW
   if (view === 'home') {
     const sinIniciar = historialHoy.length === 0
+    const hh = new Date().getHours()
+    const saludo = hh < 12 ? 'Buen día' : hh < 20 ? 'Buenas tardes' : 'Buenas noches'
+    const fechaLarga = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
     return (
       <div className="max-w-xl mx-auto space-y-4">
-        <div className="bg-white p-6 rounded-xl shadow text-center">
-          <h2 className="text-2xl font-bold">Aresa Fichaje</h2>
-          <p className="text-sm text-gray-500">Jornada de hoy · {new Date().toLocaleDateString()}</p>
+        <div className="rounded-2xl overflow-hidden shadow-lg text-white bg-gradient-to-br from-ink via-[#1E4A7A] to-[#2E6F9E] relative">
+          <div className="absolute inset-0 opacity-[0.07]" style={{ background: 'repeating-linear-gradient(-45deg, #fff 0 2px, transparent 2px 14px)' }} />
+          <div className="relative p-6 text-center">
+            <img src="/logo-blanco.png" alt="Aresa" className="h-7 mx-auto" onError={(e)=>{ (e.target as HTMLImageElement).style.display='none'}} />
+            <span className="inline-block mt-3 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-xs text-white/90 capitalize">{fechaLarga}</span>
 
-          {sinIniciar ? (
-            <>
-              <div className="my-6 p-6 bg-gray-50 rounded-xl border-2 border-dashed">
-                <div className="text-5xl mb-3">🕐</div>
-                <p className="font-medium">Buen día — ¿arrancamos?</p>
-                <p className="text-sm text-gray-500">Un toque y quedas registrado, con foto y ubicación</p>
-              </div>
-              <button onClick={() => iniciarFlujo('entrada')} className="w-full bg-ink hover:bg-[#1A2B4A] text-white text-xl font-bold py-5 rounded-xl shadow">
-                Iniciar jornada
-              </button>
-              <p className="text-xs text-gray-400 mt-2">Foto y GPS se toman en el momento</p>
-            </>
-          ) : jornada.trabajando ? (
-            <>
-              <div className="my-4 p-4 bg-green-50 border border-green-200 rounded-xl">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded-full text-sm font-bold animate-pulse">● En curso</div>
-                <div className="text-5xl font-mono font-bold mt-3">{formatHoras(elapsedMs)}</div>
-                <div className="text-sm text-gray-600">Vas bien — tiempo de esta jornada</div>
-                {jornada.inicioMs && <div className="text-xs text-gray-500">Desde las {new Date(jornada.inicioMs).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>}
-              </div>
-              <button onClick={() => iniciarFlujo('salida')} className="w-full bg-ink hover:bg-black text-white py-4 rounded-xl font-bold">Finalizar jornada</button>
-            </>
-          ) : jornada.finalizada ? (
-            <>
-              <div className="my-4 p-4 bg-gray-100 border rounded-xl">
-                <div className="inline-flex px-3 py-1 bg-gray-800 text-white rounded-full text-sm font-bold">Jornada completa</div>
-                <div className="text-5xl font-mono font-bold mt-3">{formatHoras(elapsedMs)}</div>
-                <div className="text-sm text-gray-600">Bien hecho hoy</div>
-              </div>
-              <p className="text-sm text-gray-500 mb-3">Si necesitas volver a fichar, podés iniciar otra.</p>
-              <button onClick={() => iniciarFlujo('entrada')} className="w-full bg-white border border-line text-ink py-4 rounded-xl font-bold">Iniciar nueva jornada</button>
-            </>
-          ) : null}
+            {sinIniciar ? (
+              <>
+                <div className="my-5"><RelojAresa when={now} /></div>
+                <h2 className="text-2xl font-display font-bold">{saludo} — ¿arrancamos?</h2>
+                <p className="text-white/75 text-sm mt-1">Un toque y quedas registrado, con foto y ubicación</p>
+                <button onClick={() => iniciarFlujo('entrada')} className="mt-5 w-full bg-white text-ink text-xl font-bold py-4 rounded-2xl shadow-lg hover:bg-paper transition active:scale-[0.99]">
+                  Iniciar jornada
+                </button>
+                <p className="text-white/50 text-xs mt-2">Foto y GPS se toman en el momento</p>
+              </>
+            ) : jornada.trabajando ? (
+              <>
+                <div className="mt-5 inline-flex items-center gap-2 px-3 py-1 bg-white/15 border border-white/25 rounded-full text-sm font-bold"><span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />En curso</div>
+                <div className="text-6xl font-mono font-bold mt-3 tracking-tight">{formatHoras(elapsedMs).replace(' hs', '')}</div>
+                <div className="text-sm text-white/75">Vas bien — tiempo de esta jornada</div>
+                {jornada.inicioMs && <div className="text-xs text-white/55 mt-1">Desde las {new Date(jornada.inicioMs).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>}
+                <button onClick={() => iniciarFlujo('salida')} className="mt-5 w-full bg-white text-ink py-4 rounded-2xl font-bold shadow-lg hover:bg-paper transition active:scale-[0.99]">Finalizar jornada</button>
+              </>
+            ) : jornada.finalizada ? (
+              <>
+                <img src="/icono.png" alt="" className="w-20 h-20 mx-auto mt-5 drop-shadow-lg" onError={(e)=>{ (e.target as HTMLImageElement).style.display='none'}} />
+                <div className="text-5xl font-mono font-bold mt-3">{formatHoras(elapsedMs).replace(' hs', '')}</div>
+                <div className="text-sm text-white/75">Jornada completa — bien hecho hoy</div>
+                <p className="text-xs text-white/55 mt-2">Si necesitas volver a fichar, podés iniciar otra.</p>
+                <button onClick={() => iniciarFlujo('entrada')} className="mt-4 w-full bg-white/15 border border-white/30 text-white py-3.5 rounded-2xl font-bold hover:bg-white/25 transition">Iniciar nueva jornada</button>
+              </>
+            ) : null}
 
-          {msg && <div className="mt-4 p-3 rounded border text-sm" style={{ background: msg.startsWith('✓') ? '#ecfdf5' : msg.startsWith('⚠') ? '#fffbeb' : '#fef2f2' }}>{msg}</div>}
-          {queueCount>0 && <div className="mt-3 p-3 rounded border text-sm bg-amber-50 flex justify-between items-center"><span>⏳ {queueCount} fichaje(s) offline en cola</span><button onClick={async()=>{ await reintentarCola(); refreshQueue(); await loadHistorial(); setMsg('Reintento cola completado') }} className="px-3 py-1 bg-amber-600 text-white rounded text-xs">Reintentar ahora</button></div>}
+            {msg && <div className="mt-4 p-3 rounded-xl border border-white/20 text-sm text-left" style={{ background: 'rgba(255,255,255,0.12)' }}>{msg}</div>}
+            {queueCount>0 && <div className="mt-3 p-3 rounded-xl border border-white/20 text-sm flex justify-between items-center" style={{ background: 'rgba(255,255,255,0.12)' }}><span>{queueCount} fichaje(s) offline en cola</span><button onClick={async()=>{ await reintentarCola(); refreshQueue(); await loadHistorial(); setMsg('Reintento cola completado') }} className="px-3 py-1 bg-white text-ink rounded-full text-xs font-bold">Reintentar ahora</button></div>}
+          </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl shadow">
-          <h3 className="font-bold mb-3">Hoy · {historialHoy.length} registros</h3>
-            {historialHoy.length === 0 ? <p className="text-sm text-gray-500">Todavía sin movimientos hoy — cuando fiches, aparece acá</p> : (
-            <div className="space-y-2">
+        <div className="bg-white p-5 rounded-2xl shadow">
+          <div className="flex items-center gap-2">
+            <img src="/icono.png" alt="" className="w-6 h-6" onError={(e)=>{ (e.target as HTMLImageElement).style.display='none'}} />
+            <h3 className="font-bold">Hoy · {historialHoy.length} {historialHoy.length === 1 ? 'registro' : 'registros'}</h3>
+          </div>
+          {historialHoy.length === 0 ? (
+            <div className="text-center py-6">
+              <img src="/icono.png" alt="" className="w-14 h-14 mx-auto opacity-40" onError={(e)=>{ (e.target as HTMLImageElement).style.display='none'}} />
+              <p className="text-sm text-gray-500 mt-3">Todavía sin movimientos hoy<br />cuando fiches, aparece acá</p>
+            </div>
+          ) : (
+            <div className="mt-3 ml-2 border-l-2 border-gray-100 space-y-1">
               {[...historialHoy].reverse().map(f=>(
-                <div key={f.id} className="flex gap-3 border rounded p-2 text-sm">
-                  <div className={`w-12 h-12 rounded-lg grid place-items-center text-white text-xs font-bold shrink-0 ${f.tipo==='entrada'?'bg-green-600':f.tipo==='salida'?'bg-red-600':'bg-amber-500'}`}>{f.tipo.slice(0,2).toUpperCase()}</div>
-                  <div className="min-w-0">
-                    <div className="font-semibold">{f.tipo} · {new Date(f.created_at).toLocaleTimeString()}</div>
-                    <div className="text-xs text-gray-600 truncate">{f.direccion}</div>
+                <div key={f.id} className="relative pl-5 py-2">
+                  <span className={`absolute -left-[7px] top-4 w-3 h-3 rounded-full ring-4 ring-white ${f.tipo==='entrada'?'bg-green-500':f.tipo==='salida'?'bg-red-500':'bg-amber-500'}`} />
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold capitalize text-sm">{f.tipo.replace('_', ' ')}</span>
+                    <span className="text-sm font-mono text-gray-500">{new Date(f.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span>
                   </div>
+                  <div className="text-xs text-gray-500 truncate">{f.direccion}</div>
                 </div>
               ))}
             </div>
           )}
-          <Link to="/mis-fichajes" className="block text-center mt-4 w-full bg-white border py-2 rounded font-medium">Ver mis fichajes por día →</Link>
-          <details className="mt-4">
-            <summary className="text-sm text-gray-600 cursor-pointer">Historial reciente ({historial.length})</summary>
-            <div className="space-y-2 mt-2">
+          <Link to="/mis-fichajes" className="block text-center mt-4 w-full bg-ink text-paper py-2.5 rounded-xl font-medium hover:bg-black transition">Ver mis fichajes por día →</Link>
+          <details className="mt-3">
+            <summary className="text-sm text-gray-600 cursor-pointer list-none inline-block px-3 py-1.5 bg-gray-50 border rounded-full">Historial reciente ({historial.length})</summary>
+            <div className="space-y-2 mt-3">
               {historial.map(f=>(
-                <div key={f.id} className="flex gap-2 border rounded p-2 text-xs">
-                  <div className={`w-10 h-10 rounded-lg grid place-items-center text-white text-[10px] font-bold shrink-0 ${f.tipo==='entrada'?'bg-green-600':f.tipo==='salida'?'bg-red-600':'bg-amber-500'}`}>{f.tipo.slice(0,2).toUpperCase()}</div>
-                  <div className="min-w-0"><div className="font-semibold">{f.tipo} · {new Date(f.created_at).toLocaleString()}</div><div className="text-gray-600 truncate max-w-[200px]">{f.direccion}</div></div>
+                <div key={f.id} className="flex gap-2 border rounded-xl p-2 text-xs items-center">
+                  <div className={`w-9 h-9 rounded-lg grid place-items-center text-white text-[10px] font-bold shrink-0 ${f.tipo==='entrada'?'bg-green-600':f.tipo==='salida'?'bg-red-600':'bg-amber-500'}`}>{f.tipo.slice(0,2).toUpperCase()}</div>
+                  <div className="min-w-0"><div className="font-semibold capitalize">{f.tipo.replace('_', ' ')} · {new Date(f.created_at).toLocaleString()}</div><div className="text-gray-600 truncate max-w-[200px]">{f.direccion}</div></div>
                 </div>
               ))}
             </div>
