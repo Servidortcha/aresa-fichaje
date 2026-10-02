@@ -109,8 +109,37 @@ export default function Empleado() {
 
   const [queueCount, setQueueCount] = useState(0)
   const refreshQueue = () => setQueueCount(getQueue().filter(q=> q.user_id===userId).length)
+  // Comprime foto para la cola offline (evita QuotaExceeded en localStorage)
+  const comprimirFoto = (dataUrl: string, maxDim = 1280, quality = 0.72): Promise<string> => new Promise((resolve, reject)=>{
+    const img = new Image()
+    img.onload = ()=>{
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
+      const cv = document.createElement('canvas')
+      cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale)
+      cv.getContext('2d')!.drawImage(img, 0, 0, cv.width, cv.height)
+      resolve(cv.toDataURL('image/jpeg', quality))
+    }
+    img.onerror = reject
+    img.src = dataUrl
+  })
+
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
+  useEffect(()=>{
+    const on = ()=>setIsOnline(true); const off = ()=>setIsOnline(false)
+    window.addEventListener('online', on); window.addEventListener('offline', off)
+    return ()=>{ window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  },[])
+
   useEffect(() => {
-    supabase.from('geocercas').select('*').eq('activa', true).order('nombre').then(({ data }) => setSucursales((data as Geocerca[]) ?? []))
+    // Geocercas con caché offline: si no hay red, usa la última lista guardada
+    supabase.from('geocercas').select('*').eq('activa', true).order('nombre').then(({ data, error }) => {
+      if(!error && data?.length){
+        setSucursales((data as Geocerca[]) ?? [])
+        try{ localStorage.setItem('aresa_geocercas', JSON.stringify(data)) }catch{}
+      } else {
+        try{ const cached = localStorage.getItem('aresa_geocercas'); if(cached) setSucursales(JSON.parse(cached)) }catch{}
+      }
+    })
     loadHistorial()
     refreshQueue()
     const onOnline = async()=> { await reintentarCola(); refreshQueue(); await loadHistorial() }
@@ -242,7 +271,8 @@ export default function Empleado() {
       if(isNetwork){
         try{
           const { dentro, distancia, geocerca_id } = resolverGeocerca(curCoords)
-          enqueue({ id: crypto.randomUUID(), user_id: userId!, tipo, lat: curCoords.lat, lng: curCoords.lng, direccion, foto_dataUrl: fotoDataUrl, dentro_geocerca: dentro, geocerca_id, distancia_m: distancia, created_at: new Date().toISOString(), attempts: 0 })
+          const fotoChica = await comprimirFoto(fotoDataUrl).catch(()=>fotoDataUrl)
+          enqueue({ id: crypto.randomUUID(), user_id: userId!, tipo, lat: curCoords.lat, lng: curCoords.lng, direccion, foto_dataUrl: fotoChica, dentro_geocerca: dentro, geocerca_id, distancia_m: distancia, created_at: new Date().toISOString(), attempts: 0 })
           refreshQueue()
           setMsg('⚠ Sin conexión — fichaje guardado offline y se enviará al reconectar ✓ (queda en cola)')
           setFotoPreview(null); stopCamera(); setView('home')
@@ -358,6 +388,7 @@ export default function Empleado() {
               </>
             ) : null}
 
+            {!isOnline && <div className="mt-4 p-3 rounded-xl border border-white/25 text-sm text-left bg-amber-500/90 font-medium">Sin conexión — podés fichar igual, se envía solo al recuperar señal</div>}
             {msg && <div className="mt-4 p-3 rounded-xl border border-white/20 text-sm text-left" style={{ background: 'rgba(255,255,255,0.12)' }}>{msg}</div>}
             {queueCount>0 && <div className="mt-3 p-3 rounded-xl border border-white/20 text-sm flex justify-between items-center" style={{ background: 'rgba(255,255,255,0.12)' }}><span>{queueCount} fichaje(s) offline en cola</span><button onClick={async()=>{ await reintentarCola(); refreshQueue(); await loadHistorial(); setMsg('Reintento cola completado') }} className="px-3 py-1 bg-white text-ink rounded-full text-xs font-bold">Reintentar ahora</button></div>}
           </div>
