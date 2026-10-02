@@ -5,6 +5,7 @@ import Layout from './components/Layout'
 import Login from './pages/Login'
 import Empleado from './pages/Empleado'
 import MisFichajes from './pages/MisFichajes'
+import EmpleadoLayout from './components/EmpleadoLayout'
 // Code-split: admin + leaflet + xlsx fuera del bundle inicial (P1)
 const Admin = lazy(() => import('./pages/Admin'))
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'))
@@ -41,8 +42,10 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Layout><HomeRedirect /></Layout>} />
-          <Route path="/fichar" element={<Layout><Protected roles={['empleado', 'admin']}><Empleado /></Protected></Layout>} />
-          <Route path="/mis-fichajes" element={<Layout><Protected roles={['empleado', 'admin']}><MisFichajes /></Protected></Layout>} />
+          <Route element={<Layout><Protected roles={['empleado', 'admin']}><EmpleadoLayout /></Protected></Layout>}>
+            <Route path="/fichar" element={<Empleado />} />
+            <Route path="/mis-fichajes" element={<MisFichajes />} />
+          </Route>
           {/* Admin con páginas separadas - src/pages/admin/AdminLayout.tsx:1 */}
           <Route path="/admin" element={<Layout><Protected roles={['admin']}><AdminLayout /></Protected></Layout>}>
             <Route index element={<Dashboard />} />
