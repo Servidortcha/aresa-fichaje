@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase, type Fichaje, type Geocerca } from '../../lib/supabase'
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -36,7 +37,6 @@ export default function Fichajes(){
   const [importFile, setImportFile] = useState('')
   const [importing, setImporting] = useState(false)
   const [msg, setMsg] = useState<string|null>(null)
-  const [exportMes, setExportMes] = useState(new Date().toISOString().slice(0,7))
 
   const [totalCount, setTotalCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
@@ -87,52 +87,6 @@ export default function Fichajes(){
   const totalPages = Math.max(1, Math.ceil(filtrados.length / perPage))
   const paginados = filtrados.slice((page-1)*perPage, page*perPage)
 
-  const exportExcel= async ()=>{
-    const { exportFichajesSimple } = await import('../../lib/excelExport')
-    const rows=filtrados.map(f=>{
-      const suc=f.geocerca_id ? sucMap.get(f.geocerca_id) : null
-      return { Fecha:new Date(f.created_at).toLocaleString(), Empleado:f.profiles?.nombre, Email:f.profiles?.email, Tipo:f.tipo, Sucursal:suc?.nombre ?? 'Fuera', Provincia:(suc as any)?.provincia ?? '', Lat:f.lat, Lng:f.lng, Direccion:f.direccion, Dentro:f.dentro_geocerca?'SI':'NO', Distancia_m:f.distancia_m, Foto:f.foto_url }
-    })
-    await exportFichajesSimple(rows, `Aresa_Fichajes_${new Date().toISOString().slice(0,10)}.xlsx`)
-  }
-  const exportPorSucursal= async ()=>{
-    const { exportFichajesPorSucursal } = await import('../../lib/excelExport')
-    const source = filtrados.length ? filtrados : fichajes
-    const porSuc = new Map<string, typeof source>()
-    for(const f of source){
-      const suc = f.geocerca_id ? sucMap.get(f.geocerca_id)?.nombre ?? 'Fuera' : 'Fuera'
-      if(!porSuc.has(suc)) porSuc.set(suc, [])
-      porSuc.get(suc)!.push(f)
-    }
-    // preparar mapas de rows por suc
-    const mapRows = new Map<string, any[]>()
-    for(const [suc, list] of porSuc){
-      const rows=list.map(f=>{
-        const s=f.geocerca_id ? sucMap.get(f.geocerca_id) : null
-        return { Fecha:new Date(f.created_at).toLocaleString(), Empleado:f.profiles?.nombre, Email:f.profiles?.email, Tipo:f.tipo, Sucursal:s?.nombre ?? 'Fuera', Provincia:(s as any)?.provincia ?? '', Lat:f.lat, Lng:f.lng, Direccion:f.direccion, Dentro:f.dentro_geocerca?'SI':'NO', Distancia_m:f.distancia_m, Foto:f.foto_url }
-      })
-      mapRows.set(suc, rows)
-    }
-    const allRows=source.map(f=>{
-      const s=f.geocerca_id ? sucMap.get(f.geocerca_id) : null
-      return { Fecha:new Date(f.created_at).toLocaleString(), Empleado:f.profiles?.nombre, Email:f.profiles?.email, Tipo:f.tipo, Sucursal:s?.nombre ?? 'Fuera', Provincia:(s as any)?.provincia ?? '', Lat:f.lat, Lng:f.lng, Direccion:f.direccion, Dentro:f.dentro_geocerca?'SI':'NO', Distancia_m:f.distancia_m, Foto:f.foto_url }
-    })
-    await exportFichajesPorSucursal(mapRows, allRows, `Aresa_Fichajes_por_Sucursal_${new Date().toISOString().slice(0,10)}.xlsx`)
-  }
-
-  const exportSimonetti = async()=>{
-    try{
-      const { exportSimonettiExcelJS } = await import('../../lib/excelExport')
-      const start=`${exportMes}-01T00:00:00`
-      const end=new Date(exportMes.split('-')[0] as any, Number(exportMes.split('-')[1]),1).toISOString().slice(0,10)+'T00:00:00'
-      const { data: fichMes } = await supabase.from('fichajes').select('user_id,tipo,created_at,profiles(nombre)').gte('created_at', start).lt('created_at', end).order('created_at', {ascending:true}).limit(5000)
-      const { data: profs } = await supabase.from('profiles').select('id,nombre,email').order('nombre')
-      const listaProfs = (profs as any) ?? []
-      const fetchTemplate = async()=> { const r=await fetch('/template-fichajes.xlsx'); return await r.arrayBuffer() }
-      await exportSimonettiExcelJS({ exportMes, fichMes: (fichMes as any) ?? [], profs: listaProfs, fetchTemplate, setMsg })
-      return
-    } catch(e:any){ setMsg('Error export Simonetti: '+e.message) }
-  }
   const encontrarPareja = (f: Fichaje): Fichaje | null => {
     const dia = f.created_at.slice(0,10)
     const delDia = fichajes.filter(x=> x.user_id===f.user_id && x.created_at.slice(0,10)===dia).sort((a,b)=> a.created_at.localeCompare(b.created_at))
@@ -273,14 +227,9 @@ export default function Fichajes(){
           </select>
           <input type="date" value={filtroFecha} onChange={e=>setFiltroFecha(e.target.value)} className="border rounded px-3 py-2 w-full lg:w-auto" />
           <div className="flex flex-wrap gap-2 w-full lg:w-auto">
-            <button onClick={exportExcel} className="flex-1 lg:flex-none bg-green-600 text-white px-4 py-2 rounded text-sm">Exportar (filtro)</button>
-            <button onClick={exportPorSucursal} className="flex-1 lg:flex-none bg-amber text-white px-4 py-2 rounded text-sm">Por sucursal</button>
             <button onClick={()=>setShowManual(v=>!v)} className="flex-1 lg:flex-none bg-ink text-paper px-4 py-2 rounded text-sm">+ Manual</button>
             <button onClick={()=>{ setShowImport(v=>!v); setPreview(null) }} className="flex-1 lg:flex-none bg-steel text-white px-4 py-2 rounded text-sm">Importar Excel</button>
-          </div>
-          <div className="flex gap-2 w-full lg:w-auto items-center">
-            <input type="month" value={exportMes} onChange={e=>setExportMes(e.target.value)} className="border rounded px-2 py-1 text-sm" />
-            <button onClick={exportSimonetti} className="bg-[#163A5F] text-white px-3 py-2 rounded text-sm">Formato Simonetti</button>
+            <Link to="/admin/horas" className="flex-1 lg:flex-none bg-green-600 text-white px-4 py-2 rounded text-sm text-center">Rendición de horas →</Link>
           </div>
           <span className="text-xs sm:text-sm text-gray-500 col-span-1 sm:col-span-2 lg:col-span-1">{loading ? 'Cargando...' : `${filtrados.length} en vista · ${totalCount ?? '?'} total · ${usuarios.length} usuarios`}</span>
           {fichajes.length < (totalCount ?? 0) && <button onClick={()=>load({ append:true, pageNum: Math.floor(fichajes.length/200)+1 })} className="text-xs border px-3 py-1 rounded bg-white">Cargar más (200)</button>}

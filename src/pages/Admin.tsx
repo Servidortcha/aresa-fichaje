@@ -4,7 +4,6 @@ import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents } from 're
 import { parseCoordinate, decimalToDMS } from '../lib/geofence'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
-// xlsx se carga dinámicamente en exportExcel para code-split (evita 300KB en bundle inicial + mitiga vuln audit)
 
 // fix leaflet icons
 // @ts-ignore
@@ -67,28 +66,6 @@ export default function Admin() {
     }
     return true
   })
-
-  const exportExcel = async () => {
-    const { exportFichajesSimple } = await import('../lib/excelExport')
-    const rows = filtrados.map(f => {
-      const suc = f.geocerca_id ? sucMap.get(f.geocerca_id) : null
-      return {
-        Fecha: new Date(f.created_at).toLocaleString(),
-        Empleado: f.profiles?.nombre,
-        Email: f.profiles?.email,
-        Tipo: f.tipo,
-        Sucursal: suc?.nombre ?? (f.geocerca_id ? 'ID:'+f.geocerca_id : 'Fuera de sucursal'),
-        Provincia: (suc as any)?.provincia ?? '',
-        Lat: f.lat,
-        Lng: f.lng,
-        Direccion: f.direccion,
-        DentroSucursal: f.dentro_geocerca ? 'SI' : 'NO',
-        Distancia_m: f.distancia_m,
-        Foto: f.foto_url,
-      }
-    })
-    await exportFichajesSimple(rows, `Aresa_Fichajes_${new Date().toISOString().slice(0,10)}.xlsx`)
-  }
 
   const guardarSucursal = async () => {
     setMsg(null)
@@ -154,7 +131,6 @@ export default function Admin() {
           {sucursales.map(s=> <option key={s.id} value={s.id}>{s.nombre} { (s as any).provincia ? `· ${(s as any).provincia}`:''} </option>)}
         </select>
         <input type="date" value={filtroFecha} onChange={e => setFiltroFecha(e.target.value)} className="border rounded px-3 py-2" />
-        <button onClick={exportExcel} className="bg-green-600 text-white px-4 py-2 rounded">Exportar Excel</button>
         <span className="text-sm text-gray-500">{filtrados.length} fichajes</span>
       </div>
 
