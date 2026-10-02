@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase, type Geocerca } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { dentroDeGeocerca, reverseGeocode } from '../lib/geofence'
@@ -272,6 +272,17 @@ export default function Empleado() {
     setDireccion(null)
     setView('fichar')
   }
+
+  // Acción directa desde el botón flotante (?accion=entrada|salida)
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(()=>{
+    const accion = searchParams.get('accion')
+    if(accion==='entrada' || accion==='salida'){
+      setSearchParams({}, { replace:true })
+      iniciarFlujo(accion)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[searchParams])
 
   const fichar = async () => {
     if (!coords) return setMsg('Obteniendo ubicación — esperá un segundo')

@@ -1,14 +1,27 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
 
 export default function EmpleadoLayout(){
   const loc = useLocation()
   const nav = useNavigate()
-  const { profile, signOut } = useAuth()
+  const { profile, userId, signOut } = useAuth()
   const [open, setOpen] = useState(false)
+  const [fabTipo, setFabTipo] = useState<'entrada' | 'salida'>('entrada')
   useEffect(()=>{ setOpen(false) },[loc.pathname])
   useEffect(()=>{ if(open) document.body.style.overflow='hidden'; else document.body.style.overflow=''; return ()=>{ document.body.style.overflow='' } },[open])
+
+  // Estado de jornada para el botón flotante (iniciar / finalizar)
+  useEffect(()=>{
+    if(!userId) return
+    supabase.from('fichajes').select('tipo,created_at').eq('user_id', userId).order('created_at', { ascending:false }).limit(20)
+      .then(({ data })=>{
+        const hoy = new Date().toISOString().slice(0, 10)
+        const last = (data ?? []).find((f: any)=> f.created_at.startsWith(hoy))
+        setFabTipo(last && (last.tipo==='entrada' || last.tipo==='pausa_fin') ? 'salida' : 'entrada')
+      })
+  },[userId, loc.pathname])
 
   const items = [
     { to: '/fichar', label: 'Inicio', desc: 'Fichar jornada', icon: '◧' },
@@ -66,6 +79,15 @@ export default function EmpleadoLayout(){
         </div>
         <Outlet />
       </div>
+
+      {/* Botón flotante fichar: inicia o finaliza según jornada */}
+      <button
+        onClick={()=>nav(`/fichar?accion=${fabTipo}`)}
+        className={`fixed bottom-24 right-5 lg:bottom-6 lg:right-6 z-40 flex items-center gap-2 pl-4 pr-5 py-3.5 rounded-full shadow-xl font-bold text-white transition active:scale-95 ${fabTipo==='salida' ? 'bg-red-600 hover:bg-red-700' : 'bg-ink hover:bg-black'}`}
+      >
+        <span className="text-lg leading-none">{fabTipo==='salida' ? '⏹' : '▶'}</span>
+        <span className="text-sm">{fabTipo==='salida' ? 'Finalizar' : 'Fichar'}</span>
+      </button>
     </div>
   )
 }
