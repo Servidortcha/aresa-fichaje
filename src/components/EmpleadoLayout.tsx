@@ -11,6 +11,11 @@ export default function EmpleadoLayout(){
   const [fabTipo, setFabTipo] = useState<'entrada' | 'salida'>('entrada')
   useEffect(()=>{ setOpen(false) },[loc.pathname])
   useEffect(()=>{ if(open) document.body.style.overflow='hidden'; else document.body.style.overflow=''; return ()=>{ document.body.style.overflow='' } },[open])
+  useEffect(()=>{
+    const abrir = ()=>setOpen(true)
+    window.addEventListener('aresa:menu', abrir)
+    return ()=>window.removeEventListener('aresa:menu', abrir)
+  },[])
 
   // Estado de jornada para el botón flotante (iniciar / finalizar)
   useEffect(()=>{
@@ -34,10 +39,6 @@ export default function EmpleadoLayout(){
 
   return (
     <div className="flex gap-4">
-      <button onClick={()=>setOpen(v=>!v)} className="lg:hidden fixed bottom-5 right-5 z-40 w-14 h-14 rounded-full bg-ink text-white shadow-lg grid place-items-center text-xl">
-        {open ? '✕' : '☰'}
-      </button>
-
       {open && <div onClick={()=>setOpen(false)} className="lg:hidden fixed inset-0 bg-black/40 z-30" />}
 
       <aside className={`
@@ -73,21 +74,22 @@ export default function EmpleadoLayout(){
       </aside>
 
       <div className="flex-1 min-w-0 space-y-4">
-        <div className="lg:hidden bg-white border border-line rounded-xl p-3 flex items-center justify-between shadow-sm">
+        <div className="lg:hidden bg-white border border-line rounded-xl px-4 py-2.5 shadow-sm">
           <div className="text-sm"><span className="text-gray-500">Aresa / </span><span className="font-bold text-ink">{actual}</span></div>
-          <button onClick={()=>setOpen(true)} className="px-3 py-1.5 rounded-full bg-ink text-white text-sm">Menú</button>
         </div>
         <Outlet />
       </div>
 
-      {/* Botón flotante fichar: inicia o finaliza según jornada */}
-      <button
-        onClick={()=>nav(`/fichar?accion=${fabTipo}`)}
-        className={`fixed bottom-24 right-5 lg:bottom-6 lg:right-6 z-40 flex items-center gap-2 pl-4 pr-5 py-3.5 rounded-full shadow-xl font-bold text-white transition active:scale-95 ${fabTipo==='salida' ? 'bg-red-600 hover:bg-red-700' : 'bg-ink hover:bg-black'}`}
-      >
-        <span className="text-lg leading-none">{fabTipo==='salida' ? '⏹' : '▶'}</span>
-        <span className="text-sm">{fabTipo==='salida' ? 'Finalizar' : 'Fichar'}</span>
-      </button>
+      {/* Botón flotante fichar: verde arranca, rojo para */}
+      {!open && (
+        <button
+          onClick={()=>nav(`/fichar?accion=${fabTipo}`)}
+          className={`fixed bottom-6 right-5 lg:right-6 z-40 flex items-center gap-2 pl-4 pr-5 py-3.5 rounded-full shadow-xl font-bold text-white transition active:scale-95 ${fabTipo==='salida' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+        >
+          <span className="text-lg leading-none">{fabTipo==='salida' ? '⏹' : '▶'}</span>
+          <span className="text-sm">{fabTipo==='salida' ? 'Finalizar' : 'Fichar'}</span>
+        </button>
+      )}
     </div>
   )
 }

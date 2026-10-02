@@ -17,14 +17,15 @@ export default function AdminLayout(){
   useEffect(()=>{ setOpen(false) },[loc.pathname])
   // bloquea scroll body cuando drawer abierto en mobile
   useEffect(()=>{ if(open) document.body.style.overflow='hidden'; else document.body.style.overflow=''; return ()=>{ document.body.style.overflow='' } },[open])
+  // se abre desde la hamburguesa del header
+  useEffect(()=>{
+    const abrir = ()=>setOpen(true)
+    window.addEventListener('aresa:menu', abrir)
+    return ()=>window.removeEventListener('aresa:menu', abrir)
+  },[])
 
   return (
     <div className="flex gap-4">
-      {/* Botón hamburguesa mobile */}
-      <button onClick={()=>setOpen(v=>!v)} className="lg:hidden fixed bottom-5 right-5 z-40 w-14 h-14 rounded-full bg-ink text-white shadow-lg grid place-items-center text-xl">
-        {open ? '✕' : '☰'}
-      </button>
-
       {/* Overlay mobile */}
       {open && <div onClick={()=>setOpen(false)} className="lg:hidden fixed inset-0 bg-black/40 z-30" />}
 
@@ -67,10 +68,9 @@ export default function AdminLayout(){
 
       {/* Contenido */}
       <div className="flex-1 min-w-0 space-y-4">
-        {/* Barra superior mobile: muestra sección actual + botón abrir */}
-        <div className="lg:hidden bg-white border border-line rounded-xl p-3 flex items-center justify-between shadow-sm">
+        {/* Barra superior mobile: muestra sección actual */}
+        <div className="lg:hidden bg-white border border-line rounded-xl px-4 py-2.5 shadow-sm">
           <div className="text-sm"><span className="text-gray-500">Admin / </span><span className="font-bold text-ink">{nav.find(n=> n.exact ? loc.pathname===n.to : loc.pathname.startsWith(n.to))?.label ?? 'Panel'}</span></div>
-          <button onClick={()=>setOpen(true)} className="px-3 py-1.5 rounded-full bg-ink text-white text-sm">Menú</button>
         </div>
         <Outlet />
       </div>
